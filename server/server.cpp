@@ -6,6 +6,7 @@
 #include "AVLTree.h"
 #include "Queue.h"
 #include "UserIdManager.h"
+#include <string>
 
 // variables declaration
 Logger logs;
@@ -41,26 +42,36 @@ void handleQueue()
     player2->isPlaying = true;
 
     player1->socket->write("Your Match Found\n");
+    player1->socket->flush();
     player2->socket->write("Your Match Found\n");
+    player2->socket->flush();
 
-    logs.info("Chat started between user " + to_string(idPlayer1) + " and user " + to_string(idPlayer2));
+    std::string msg = "Chat started between user " + std::to_string(idPlayer1) + " and user " + std::to_string(idPlayer2) + "\n";
+    player1->socket->write(msg.c_str());
+    player1->socket->flush();
+    player2->socket->write(msg.c_str());
+    player2->socket->flush();
+
+    logs.info("Chat started between user " + std::to_string(idPlayer1) + " and user " + std::to_string(idPlayer2));
 
     QObject::connect(player1->socket, &QTcpSocket::readyRead, [=]()
                      {
         QByteArray data = player1->socket->readAll();
-        logs.info("User " + to_string(idPlayer1) + " says: " + string(data.constData()));
-        player2->socket->write(data + "\n"); });
+        logs.info("User " + std::to_string(idPlayer1) + " says: " + std::string(data.constData()));
+        player2->socket->write(data + "\n");
+        player2->socket->flush(); });
 
     QObject::connect(player2->socket, &QTcpSocket::readyRead, [=]()
                      {
         QByteArray data = player2->socket->readAll();
-        logs.info("User " + to_string(idPlayer2) + " says: " + string(data.constData()));
-        player1->socket->write(data + "\n"); });
+        logs.info("User " + std::to_string(idPlayer2) + " says: " + std::string(data.constData()));
+        player1->socket->write(data + "\n");
+        player1->socket->flush(); });
 }
 
 void handleNewConnection(QTcpSocket *socket)
 {
-    string ip = socket->peerAddress().toString().toStdString();
+    std::string ip = socket->peerAddress().toString().toStdString();
 
     logs.info("New User connected from " + ip);
 
@@ -68,24 +79,21 @@ void handleNewConnection(QTcpSocket *socket)
 
     if (user != NULL)
     {
-        // if user is stored in to the avl just reconnect them
         users.reconnectUser(ip, socket);
-        socket->write("You Have been successfully Reconnected to the server");
+        socket->write("You Have been successfully Reconnected to the server \n");
 
-        logs.info("User " + to_string(user->userId) + " reconnected");
+        logs.info("User " + std::to_string(user->userId) + " reconnected\n");
         socket->write("Welcome Back User !!\n");
+        socket->flush();
         waitingQueue.enqueue(user->userId, socket);
     }
     else
     {
-        // new user congratulations add them to avl and queue
         int id = idManager.assignNextUserId();
-
         users.insertUser(id, socket, ip);
         socket->write("Welcome to Chess Chat System hope you enjoy it \n");
-
-        logs.info("New user " + to_string(id) + " added");
-
+        socket->flush();
+        logs.info("New user " + std::to_string(id) + " added");
         waitingQueue.enqueue(id, socket);
     }
 
@@ -93,16 +101,15 @@ void handleNewConnection(QTcpSocket *socket)
 
     QObject::connect(socket, &QTcpSocket::disconnected, [=]()
                      {
-                         string disconnectedIp = socket->peerAddress().toString().toStdString();
-                         Node *node = users.findByIp(disconnectedIp);
+        std::string disconnectedIp = socket->peerAddress().toString().toStdString();
+        Node *node = users.findByIp(disconnectedIp);
 
-                         if (node != NULL)
-                         {
-                             node->isConnected = false;
-                             node->isPlaying = false;
-                             logs.info("User " + to_string(node->userId) + " disconnected \n");
-                         }
-                     });
+        if (node != NULL)
+        {
+            node->isConnected = false;
+            node->isPlaying   = false;
+            logs.info("User " + std::to_string(node->userId) + " disconnected \n");
+        } });
 }
 
 int main(int argc, char *argv[])

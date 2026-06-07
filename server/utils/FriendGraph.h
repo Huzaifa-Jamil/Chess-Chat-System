@@ -2,7 +2,7 @@
 #include <string>
 #include "Logger.h"
 
-static const int MAX_GRAPH_USERS = 100;
+static const int MAX_GRAPH_USERS = 1000;
 
 class FriendGraph
 {
@@ -167,7 +167,7 @@ public:
         {
             visited[i] = false;
             parent[i] = -1;
-            key[i] = 1e9;
+            key[i] = 999999999;
             if (activeNodes[i])
             {
                 hasActive = true;
@@ -191,7 +191,7 @@ public:
             for (int count = 0; count < MAX_GRAPH_USERS; count++)
             {
                 int u = -1;
-                int minKey = 1e9;
+                int minKey = 999999999;
 
                 // Find minimum key node that is active and not visited
                 for (int i = 0; i < MAX_GRAPH_USERS; i++)

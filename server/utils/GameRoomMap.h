@@ -31,7 +31,7 @@ private:
 
     int hash(int key) const
     {
-        return (key * 2654435761u) % ROOM_MAP_SIZE;
+        return (int)(((unsigned int)key * 2654435761u) % ROOM_MAP_SIZE);
     }
 
 public:

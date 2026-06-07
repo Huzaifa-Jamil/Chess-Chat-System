@@ -307,7 +307,22 @@ private:
         return findByIp(root->right, ip);
     }
 
+private:
+    void destroyTree(Node *node)
+    {
+        if (node == NULL)
+            return;
+        destroyTree(node->left);
+        destroyTree(node->right);
+        delete node;
+    }
+
 public:
+    ~AVLTree()
+    {
+        destroyTree(root);
+    }
+
     void display()
     {
         if (root == NULL)

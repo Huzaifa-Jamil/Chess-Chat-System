@@ -1,36 +1,38 @@
+#pragma once
 #include "Logger.h"
-using namespace std;
+#include <iostream>
+#include <string>
 
 template <typename T>
-
-struct Node
+struct StackNode
 {
     int userId;
     T data;
-    Node *next;
+    StackNode *next;
 
-    Node(int Id, T value)
+    StackNode(int id, T d)
     {
-        userId = Id;
-        data = value;
+        userId = id;
+        data = d;
         next = NULL;
     }
 };
 
+template <typename T>
 class Stack
 {
 
 private:
-    Node *top;
-    int size;
+    StackNode<T> *topNode;
+    int stackSize;
     Logger *logs;
 
 public:
     Stack(Logger *log)
     {
         this->logs = log;
-        top = NULL;
-        size = 0;
+        topNode = NULL;
+        stackSize = 0;
     }
 
     ~Stack()
@@ -40,12 +42,12 @@ public:
 
     bool isEmpty()
     {
-        return top == NULL;
+        return topNode == NULL;
     }
 
     int getSize()
     {
-        return size;
+        return stackSize;
     }
 
     void display()
@@ -56,12 +58,12 @@ public:
             return;
         }
 
-        string stack = "Stack (top to bottom): ";
-        Node *current = top;
+        std::string stack = "Stack (top to bottom): ";
+        StackNode<T> *current = topNode;
 
         while (current != NULL)
         {
-            stack += "[" + to_string(current->userId) + "] -> ";
+            stack += "[" + std::to_string(current->userId) + "] -> ";
             current = current->next;
         }
 
@@ -79,12 +81,12 @@ public:
 
     void push(int id, T value)
     {
-        Node *newNode = new Node(id, value);
-        newNode->next = top;
-        top = newNode;
+        StackNode<T> *newNode = new StackNode<T>(id, value);
+        newNode->next = topNode;
+        topNode = newNode;
 
-        size++;
-        logs->info("User [" + to_string(id) + "] pushed onto stack");
+        stackSize++;
+        logs->info("User [" + std::to_string(id) + "] pushed onto stack");
         display();
     }
 
@@ -96,11 +98,11 @@ public:
             return;
         }
 
-        Node *temp = top;
-        top = top->next;
+        StackNode<T> *temp = topNode;
+        topNode = topNode->next;
 
-        size--;
-        logs->info("User [" + to_string(temp->userId) + "] popped from stack");
+        stackSize--;
+        logs->info("User [" + std::to_string(temp->userId) + "] popped from stack");
         delete temp;
         display();
     }
@@ -112,6 +114,6 @@ public:
             logs->warning("Stack is Empty");
             return T{};
         }
-        return top->data;
+        return topNode->data;
     }
 };

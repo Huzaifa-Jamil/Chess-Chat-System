@@ -30,7 +30,7 @@ public:
     // Send a message to player1
     void sendToPlayer1(const std::string &msg)
     {
-        if (player1 == NULL)
+        if (player1 == NULL || player1->state() != QAbstractSocket::ConnectedState)
         {
             return;
         }
@@ -42,7 +42,7 @@ public:
     // Send a message to player2
     void sendToPlayer2(const std::string &msg)
     {
-        if (player2 == NULL)
+        if (player2 == NULL || player2->state() != QAbstractSocket::ConnectedState)
         {
             return;
         }

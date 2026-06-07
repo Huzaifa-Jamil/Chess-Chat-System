@@ -24,9 +24,9 @@ private:
     Node *table[SIZE];
     Logger *logs;
 
-    int hash(int key)
+    int hash(int key) const
     {
-        return (key * 2654435761) % SIZE;
+        return (int)(((unsigned int)key * 2654435761u) % SIZE);
     }
 
 public:
@@ -40,9 +40,37 @@ public:
         }
     }
 
+    ~HashMap()
+    {
+        for (int i = 0; i < SIZE; i++)
+        {
+            Node *current = table[i];
+            while (current != nullptr)
+            {
+                Node *next = current->next;
+                delete current;
+                current = next;
+            }
+            table[i] = nullptr;
+        }
+    }
+
     void insert(int key, QTcpSocket *socket)
     {
         int index = hash(key);
+
+        Node *existing = table[index];
+        while (existing != nullptr)
+        {
+            if (existing->key == key)
+            {
+                existing->socket = socket;
+                logs->info("Active users (Hash map):- Updated user " + std::to_string(key));
+                debug();
+                return;
+            }
+            existing = existing->next;
+        }
 
         Node *n = new Node(key, socket);
 

@@ -72,10 +72,11 @@ public:
         return false;
     }
 
-    void dispaly()
+    void display()
     {
         if (isEmpty())
         {
+            logs->info("Users Queue (Queue):- END");
             return;
         }
 
@@ -133,7 +134,7 @@ public:
         }
 
         size++;
-        dispaly();
+        display();
     }
 
     void remove(int id)
@@ -164,7 +165,7 @@ public:
                 }
                 delete current;
                 size--;
-                dispaly();
+                display();
                 return;
             }
 
@@ -196,6 +197,6 @@ public:
         size--;
 
         delete temp;
-        dispaly();
+        display();
     }
 };

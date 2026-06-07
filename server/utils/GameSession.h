@@ -50,7 +50,11 @@ public:
     {
         if (moveCount >= MAX_MOVES)
         {
-            logs->error("GameSession:- move array full");
+            logs->error("GameSession:- move limit reached, declaring draw");
+            if (status == GameStatus::IN_GAME)
+            {
+                setResult(GameStatus::TIE);
+            }
             return false;
         }
 
@@ -59,6 +63,14 @@ public:
 
         logs->info("GameSession:- Move recorded, total moves " + std::to_string(moveCount) +
                    ", move added " + move);
+
+        // Check if we just hit the limit after recording
+        if (moveCount >= MAX_MOVES && status == GameStatus::IN_GAME)
+        {
+            logs->error("GameSession:- move limit reached after recording, declaring draw");
+            setResult(GameStatus::TIE);
+        }
+
         return true;
     }
 

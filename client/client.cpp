@@ -1,44 +1,115 @@
 #include <QCoreApplication>
 #include <QTcpSocket>
-#include <QTextStream>
 #include <QThread>
-#include <QDebug>
 #include <QMetaObject>
+#include <QMutex>
+#include <QTextStream>
+#include <iostream>
+#include <atomic>
+#include "Protocol.h"
+#include "Chess.h"
 
 QTcpSocket socket;
+QMutex ioMutex;
 
-const QString AUTH_TOKEN = "CHESS123456PLEASEAUTH";
-bool authenticated = false;
+std::atomic<bool> authenticated(false);
+std::atomic<bool> running(true);
 
-void inputLoop()
+GameState game;
+ChatState chat;
+
+static void safePrint(const std::string &s)
+{
+    QMutexLocker locker(&ioMutex);
+    std::cout << "\n"
+              << s << std::endl;
+    std::cout << "> " << std::flush;
+}
+
+static void sendMsg(const std::string &tag, const std::string &data)
+{
+    QMetaObject::invokeMethod(&socket, [=]()
+                              {
+        socket.write(Protocol::build(tag, data).c_str());
+        socket.flush(); }, Qt::QueuedConnection);
+}
+
+static void printBoard()
+{
+    std::string out;
+    out += "\n";
+
+    for (int r = 0; r < 8; r++)
+    {
+        out += std::to_string(8 - r) + " ";
+        for (int c = 0; c < 8; c++)
+        {
+            char p = game.board[r][c].type;
+
+            if (game.board[r][c].empty())
+                out += ". ";
+            else
+                out += std::string(1, p) + " ";
+        }
+        out += "\n";
+    }
+
+    out += "  a b c d e f g h";
+    safePrint(out);
+}
+
+static void inputLoop()
 {
     QTextStream in(stdin);
 
-    // wait only once for auth
-    while (!authenticated)
+    while (running)
     {
-        QThread::msleep(100);
-    }
+        std::string line = in.readLine().toStdString();
 
-    qDebug() << "You can start chatting now.";
+        if (!running)
+            break;
 
-    while (true)
-    {
-        QString msg = in.readLine();
-
-        if (msg == "/exit")
+        if (line == "quit")
         {
+            running = false;
             QMetaObject::invokeMethod(&socket, []()
                                       { socket.disconnectFromHost(); }, Qt::QueuedConnection);
             break;
         }
 
-        qDebug().noquote() << "[You]:" << msg;
+        if (line == "board")
+        {
+            printBoard();
+            continue;
+        }
 
-        QMetaObject::invokeMethod(&socket, [msg]()
-                                  {
-            socket.write(msg.toUtf8() + "\n");
-            socket.flush(); }, Qt::QueuedConnection);
+        if (line.rfind("chat ", 0) == 0)
+        {
+            std::string msg = line.substr(5);
+            safePrint("[You] " + msg);
+            sendMsg(TAG_CHAT, msg);
+            continue;
+        }
+
+        if (line.rfind("move ", 0) == 0)
+        {
+            std::string mv = line.substr(5);
+
+            if (game.validateMove(mv))
+            {
+                game.applyMove(mv);
+                safePrint("[System] Move sent: " + mv);
+                sendMsg(TAG_GAME, mv + "|" + game.serialize());
+                printBoard();
+            }
+            else
+            {
+                safePrint("[System] Illegal move");
+            }
+            continue;
+        }
+
+        safePrint("[System] Commands: move e2e4 | chat hello | board | quit");
     }
 }
 
@@ -46,48 +117,71 @@ int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
 
-    socket.connectToHost("104.198.200.12", 8080);
-    // socket.connectToHost("127.0.0.1", 8080);
+    socket.connectToHost("127.0.0.1", 8080);
 
     QObject::connect(&socket, &QTcpSocket::connected, []()
-                     { qDebug() << "[Server]: Connected"; });
+                     { safePrint("[Server] Connected"); });
 
     QObject::connect(&socket, &QTcpSocket::readyRead, [&]()
                      {
         while (socket.canReadLine())
         {
-            QString msg = socket.readLine().trimmed();
+            std::string msg = socket.readLine().toStdString();
+            msg = Protocol::clean(msg);
 
-            // one-time auth handshake
-            if (msg.contains("Send auth token"))
-            {
-                qDebug() << "[Server]:" << msg;
+            std::string tag = Protocol::getTag(msg);
+            std::string data = Protocol::getData(msg);
 
-                socket.write(AUTH_TOKEN.toUtf8() + "\n");
-                socket.flush();
-
-                qDebug() << "[You]: Auth token sent";
-            }
-            else if (msg == "AUTH OK")
+            if (tag == TAG_AUTH)
             {
-                authenticated = true;
-                qDebug() << "[Server]: Authentication  Successful";
+                if (data.find("SEND_TOKEN") != std::string::npos)
+                {
+                    sendMsg(TAG_AUTH, "CHESS123456PLEASEAUTH");
+                }
+                else if (data.find("OK") != std::string::npos)
+                {
+                    authenticated = true;
+                    safePrint("[System] Authenticated");
+                }
             }
-            else if (msg == "AUTH FAILED")
+            else if (tag == TAG_CHAT)
             {
-                qDebug() << "[Server]: Authentication failed";
-                socket.disconnectFromHost();
+                safePrint("[Opponent] " + data);
             }
-            else
+            else if (tag == TAG_GAME)
             {
-                qDebug().noquote() << "[Other]:" << msg;
+                size_t p = data.find('|');
+                if (p != std::string::npos)
+                {
+                    std::string mv = data.substr(0, p);
+                    std::string board = data.substr(p + 1);
+                    game.deserialize(board);
+                    safePrint("[System] Opponent move: " + mv);
+                    printBoard();
+                }
             }
+            else if (tag == TAG_START)
+            {
+                safePrint("[System] Game Started");
+                game.reset();
+                printBoard();
+            }
+            else if (tag == TAG_WIN)
+                safePrint("*** YOU WIN ***");
+            else if (tag == TAG_LOSS)
+                safePrint("*** YOU LOSE ***");
+            else if (tag == TAG_TIE)
+                safePrint("*** DRAW ***");
         } });
 
     QObject::connect(&socket, &QTcpSocket::disconnected, []()
-                     { qDebug() << "[Server]: Disconnected"; });
+                     {
+        safePrint("[Server] Disconnected");
+        running = false;
+        QCoreApplication::quit(); });
 
     QThread *t = QThread::create(inputLoop);
     t->start();
+
     return a.exec();
 }

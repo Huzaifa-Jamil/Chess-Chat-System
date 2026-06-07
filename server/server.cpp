@@ -6,6 +6,8 @@
 #include "AVLTree.h"
 #include "Queue.h"
 #include "UserIdManager.h"
+#include "LinkedList.h"
+#include "HashMap.h"
 #include <string>
 
 // variables declaration
@@ -13,6 +15,17 @@ Logger logs;
 UserIdManager idManager;
 AVLTree users(&logs);
 Queue<QTcpSocket *> waitingQueue(&logs);
+LinkedList pendingUsers(&logs);
+HashMap activeUsers(&logs);
+
+// auth tocken info
+static const std::string AUTH_TOKEN = "CHESS123456PLEASEAUTH";
+static const int MAX_TOKEN_SIZE = 21;
+
+// method declaration
+void handleQueue();
+void promoteToServer(QTcpSocket *socket, std::string ip);
+void handleNewConnection(QTcpSocket *socket);
 
 // some helper methods
 
@@ -34,7 +47,7 @@ void handleQueue()
 
     if (player1 == NULL || player2 == NULL)
     {
-        logs.info("Match failed: one of the users not found");
+        logs.info("Match failed, one of the users not found");
         return;
     }
 
@@ -69,46 +82,116 @@ void handleQueue()
         player1->socket->flush(); });
 }
 
-void handleNewConnection(QTcpSocket *socket)
+void promoteToServer(QTcpSocket *socket, std::string ip)
 {
-    std::string ip = socket->peerAddress().toString().toStdString();
+    Node *existing = users.findByIp(ip);
 
-    logs.info("New User connected from " + ip);
-
-    Node *user = users.findByIp(ip);
-
-    if (user != NULL)
+    if (existing != NULL)
     {
-        users.reconnectUser(ip, socket);
-        socket->write("You Have been successfully Reconnected to the server \n");
+        // Check if user already has an active session in HashMap
+        if (activeUsers.exists(existing->userId))
+        {
+            logs.error("Duplicate login attempt for active user " + std::to_string(existing->userId));
 
-        logs.info("User " + std::to_string(user->userId) + " reconnected\n");
-        socket->write("Welcome Back User !!\n");
+            // Reject the new connection and continue old one
+            socket->write("Error: This user is already logged in elsewhere (from same ip)\n");
+            socket->flush();
+            socket->disconnectFromHost();
+
+            return;
+        }
+
+        // Standard Reconnect Logic
+        users.reconnectUser(ip, socket);
+        activeUsers.insert(existing->userId, socket);
+
+        socket->write("Welcome Back! You have been reconnected\n");
         socket->flush();
-        waitingQueue.enqueue(user->userId, socket);
+        logs.info("User " + std::to_string(existing->userId) + " reconnected from " + ip);
+        waitingQueue.enqueue(existing->userId, socket);
     }
     else
     {
+        // New User Registration
         int id = idManager.assignNextUserId();
         users.insertUser(id, socket, ip);
-        socket->write("Welcome to Chess Chat System hope you enjoy it \n");
+        activeUsers.insert(id, socket);
+
+        socket->write("Welcome to Chess Chat System! Its a good Day lets Chat and play!\n");
         socket->flush();
-        logs.info("New user " + std::to_string(id) + " added");
+        logs.info("New user " + std::to_string(id) + " connected from " + ip);
         waitingQueue.enqueue(id, socket);
     }
 
-    handleQueue();
-
+    // Handle Disconnects
     QObject::connect(socket, &QTcpSocket::disconnected, [=]()
                      {
-        std::string disconnectedIp = socket->peerAddress().toString().toStdString();
-        Node *node = users.findByIp(disconnectedIp);
-
+        Node *node = users.findByIp(ip);
         if (node != NULL)
         {
             node->isConnected = false;
             node->isPlaying   = false;
-            logs.info("User " + std::to_string(node->userId) + " disconnected \n");
+            activeUsers.remove(node->userId);
+            logs.info("User " + std::to_string(node->userId) + " disconnected");
+        } });
+
+    handleQueue();
+}
+
+void handleNewConnection(QTcpSocket *socket)
+{
+    std::string ip = socket->peerAddress().toString().toStdString();
+    logs.info("New connection from " + ip + ", waiting for auth");
+
+    pendingUsers.insert(socket, ip);
+    socket->write("Send auth token to continue \n");
+    socket->flush();
+
+    QObject::connect(socket, &QTcpSocket::readyRead, [=]()
+                     {
+        LinkedListNode *node = pendingUsers.find(socket);
+        if (node == NULL)
+        {
+            return;
+        }
+
+        std::string msg = socket->readAll().toStdString();
+        while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r'))
+        {
+            msg.pop_back();
+        }
+
+        node->tokenBuffer += msg;
+
+        if (node->tokenBuffer == AUTH_TOKEN)
+        {
+            socket->write("AUTH OK\n");
+            socket->flush();
+            logs.info("Auth success from " + ip);
+
+            std::string nodeIp = node->ip;
+            pendingUsers.remove(socket);
+            promoteToServer(socket, nodeIp);
+        }
+
+        // token too long will be rejected like GET / and other stuff
+        else if (node->tokenBuffer.size() > MAX_TOKEN_SIZE)
+        {
+            socket->write("AUTH FAILED\n");
+            socket->flush();
+            logs.info("Auth failed from " + ip);
+            pendingUsers.remove(socket);
+            socket->disconnectFromHost();
+        } });
+
+    // disconnect before auth
+    QObject::connect(socket, &QTcpSocket::disconnected, [=]()
+                     {
+        LinkedListNode *node = pendingUsers.find(socket);
+        if (node != NULL)
+        {
+            logs.info("Unauthenticated user dropped " + ip);
+            pendingUsers.remove(socket);
         } });
 }
 
@@ -123,6 +206,7 @@ int main(int argc, char *argv[])
     QObject::connect(&server, &QTcpServer::newConnection, [&]()
                      {
         QTcpSocket *socket = server.nextPendingConnection();
+
         handleNewConnection(socket); });
 
     return a.exec();

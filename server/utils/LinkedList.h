@@ -47,8 +47,7 @@ private:
     }
 
 public:
-    
-    LinkedList(Logger *logger)
+        LinkedList(Logger *logger)
     {
         head = NULL;
         tail = NULL;

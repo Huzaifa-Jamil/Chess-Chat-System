@@ -10,7 +10,7 @@ private:
 
     struct Node
     {
-        int key; // by userId 
+        int key; // by userId
         QTcpSocket *socket;
         Node *next;
 

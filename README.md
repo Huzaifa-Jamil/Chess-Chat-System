@@ -1,4 +1,4 @@
-# Chesscord v1.0.0
+# Chesscord
 
 A multiplayer Chess and real-time Chat platform built in C++  powered by a Qt6 TCP server and a plain terminal CMD client. Every data structure is implemented from scratch ;) no STD containers used.
 

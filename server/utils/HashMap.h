@@ -6,8 +6,6 @@
 class HashMap
 {
 private:
-    static const int SIZE = 100;
-
     struct Node
     {
         int key; // by userId
@@ -21,6 +19,7 @@ private:
             next = nullptr;
         }
     };
+    static const int SIZE = 100;
 
     Node *table[SIZE];
     Logger *logs;
@@ -51,7 +50,8 @@ public:
         n->next = table[index];
         table[index] = n;
 
-        logs->info("HashMap, inserted user " + std::to_string(key));
+        logs->info("Active users (Hash map):- Inserted user " + std::to_string(key));
+        debug();
     }
 
     QTcpSocket *get(int key)
@@ -98,7 +98,8 @@ public:
                 }
 
                 delete temp;
-                logs->info("HashMap, removed user " + std::to_string(key));
+                logs->info("Active users (Hash map):- Removed user " + std::to_string(key));
+                debug();
                 return;
             }
 
@@ -109,7 +110,7 @@ public:
 
     void debug()
     {
-        std::string out = "HashMap: ";
+        std::string out = "Active users (Hash map):- ";
 
         for (int i = 0; i < SIZE; i++)
         {

@@ -3,8 +3,10 @@
 using namespace std;
 
 template <typename T>
+
 class Queue
 {
+
 private:
     struct Node
     {
@@ -77,7 +79,7 @@ public:
             return;
         }
 
-        string userQueue = "Users Queue: ";
+        string userQueue = "Users Queue (Queue):- ";
         Node *current = front;
 
         do
@@ -112,7 +114,7 @@ public:
     {
         if (contains(id))
         {
-            logs->info("Queue: user [" + to_string(id) + "] already in queue, skipping them");
+            logs->info("Users Queue (Queue):- user [" + to_string(id) + "] already in queue, skipping them");
             return;
         }
 
@@ -132,6 +134,44 @@ public:
 
         size++;
         dispaly();
+    }
+
+    void remove(int id)
+    {
+        if (isEmpty())
+        {
+            return;
+        }
+
+        Node *current = front;
+        Node *prev = rear;
+
+        do
+        {
+            if (current->userId == id)
+            {
+                if (current == front && current == rear)
+                {
+                    front = rear = NULL;
+                }
+                else
+                {
+                    prev->next = current->next;
+                    if (current == front)
+                        front = current->next;
+                    if (current == rear)
+                        rear = prev;
+                }
+                delete current;
+                size--;
+                dispaly();
+                return;
+            }
+
+            prev = current;
+            current = current->next;
+
+        } while (current != front);
     }
 
     void dequeue()

@@ -7,10 +7,11 @@ static const int MAX_GRAPH_USERS = 100;
 class FriendGraph
 {
 private:
-
     // The adjacency matrix
-    
     int matrix[MAX_GRAPH_USERS][MAX_GRAPH_USERS];
+
+    // Nodes in the graph (registered/active users)
+    bool activeNodes[MAX_GRAPH_USERS];
 
     // How many users are currently registered in the graph
     int userCount;
@@ -30,14 +31,14 @@ private:
     }
 
 public:
-
     FriendGraph(Logger *logger)
     {
-        logs      = logger;
+        logs = logger;
         userCount = 0;
 
         for (int i = 0; i < MAX_GRAPH_USERS; i++)
         {
+            activeNodes[i] = false;
             for (int j = 0; j < MAX_GRAPH_USERS; j++)
             {
                 matrix[i][j] = 0;
@@ -47,16 +48,23 @@ public:
 
     void addUser(int userId)
     {
-        if (!validId(userId)) return;
+        if (!validId(userId))
+            return;
 
-        userCount++;
-        logs->info("FriendGraph: user " + std::to_string(userId) + " added as node");
+        if (!activeNodes[toIndex(userId)])
+        {
+            activeNodes[toIndex(userId)] = true;
+            userCount++;
+            logs->info("Friends Graph(Graph):- user " + std::to_string(userId) + " added as node");
+        }
     }
 
     void addEdge(int userId1, int userId2)
     {
-        if (!validId(userId1) || !validId(userId2)) return;
-        if (userId1 == userId2) return;
+        if (!validId(userId1) || !validId(userId2))
+            return;
+        if (userId1 == userId2)
+            return;
 
         int i = toIndex(userId1);
         int j = toIndex(userId2);
@@ -64,14 +72,15 @@ public:
         matrix[i][j]++;
         matrix[j][i]++;
 
-        logs->info("FriendGraph: edge updated user " + std::to_string(userId1) +
+        logs->info("Friends Graph(Graph):- Edge updated user " + std::to_string(userId1) +
                    " <-> user " + std::to_string(userId2) +
                    " | games played: " + std::to_string(matrix[i][j]));
     }
 
     int getGameCount(int userId1, int userId2) const
     {
-        if (!validId(userId1) || !validId(userId2)) return 0;
+        if (!validId(userId1) || !validId(userId2))
+            return 0;
 
         return matrix[toIndex(userId1)][toIndex(userId2)];
     }
@@ -83,10 +92,11 @@ public:
 
     void displayConnections(int userId) const
     {
-        if (!validId(userId)) return;
+        if (!validId(userId))
+            return;
 
         int i = toIndex(userId);
-        std::string out = "FriendGraph connections for user " +
+        std::string out = "Friends Graph(Graph):- connections for user " +
                           std::to_string(userId) + ": ";
 
         bool any = false;
@@ -101,14 +111,15 @@ public:
             }
         }
 
-        if (!any) out += "none";
+        if (!any)
+            out += "NULL";
 
         logs->info(out);
     }
 
     void displayAll() const
     {
-        logs->info("FriendGraph connections matrix of users ");
+        logs->info("Friends Graph(Graph):- connection matrix of users ");
 
         for (int i = 0; i < MAX_GRAPH_USERS; i++)
         {
@@ -116,12 +127,17 @@ public:
 
             for (int j = 0; j < MAX_GRAPH_USERS; j++)
             {
-                if (matrix[i][j] > 0) { hasAny = true; break; }
+                if (matrix[i][j] > 0)
+                {
+                    hasAny = true;
+                    break;
+                }
             }
 
-            if (!hasAny) continue; // skip users with no connections
+            if (!hasAny)
+                continue; // skip users with no connections
 
-            std::string row = "  user " + std::to_string(i + 1) + ": ";
+            std::string row = "Friends Graph(Graph):-   user " + std::to_string(i + 1) + ": ";
 
             for (int j = 0; j < MAX_GRAPH_USERS; j++)
             {
@@ -134,5 +150,86 @@ public:
 
             logs->info(row);
         }
+    }
+
+    // Prim's algorithm to log the Minimum Spanning Forest / Tree of user connections
+    void logMST() const
+    {
+        std::string prefix = "friends graph (Prims Alog, MST):- ";
+        logs->info(prefix);
+
+        bool visited[MAX_GRAPH_USERS];
+        int parent[MAX_GRAPH_USERS];
+        int key[MAX_GRAPH_USERS];
+        bool hasActive = false;
+
+        for (int i = 0; i < MAX_GRAPH_USERS; i++)
+        {
+            visited[i] = false;
+            parent[i] = -1;
+            key[i] = 1e9;
+            if (activeNodes[i])
+            {
+                hasActive = true;
+            }
+        }
+
+        if (!hasActive)
+        {
+            logs->info(prefix + "NULL");
+            return;
+        }
+
+        // Run Prim's for all components of the graph (Spanning Forest)
+        for (int start = 0; start < MAX_GRAPH_USERS; start++)
+        {
+            if (!activeNodes[start] || visited[start])
+                continue;
+
+            key[start] = 0;
+
+            for (int count = 0; count < MAX_GRAPH_USERS; count++)
+            {
+                int u = -1;
+                int minKey = 1e9;
+
+                // Find minimum key node that is active and not visited
+                for (int i = 0; i < MAX_GRAPH_USERS; i++)
+                {
+                    if (activeNodes[i] && !visited[i] && key[i] < minKey)
+                    {
+                        minKey = key[i];
+                        u = i;
+                    }
+                }
+
+                if (u == -1)
+                    break;
+
+                visited[u] = true;
+
+                if (parent[u] != -1)
+                {
+                    logs->info(prefix + "MST Edge: User " + std::to_string(parent[u] + 1) +
+                               " <-> User " + std::to_string(u + 1) +
+                               " (Games: " + std::to_string(matrix[parent[u]][u]) + ")");
+                }
+
+                // Update adjacent keys
+                for (int v = 0; v < MAX_GRAPH_USERS; v++)
+                {
+                    if (activeNodes[v] && matrix[u][v] > 0 && !visited[v])
+                    {
+                        // Standard MST: weight of edge is matrix[u][v]
+                        if (matrix[u][v] < key[v])
+                        {
+                            parent[v] = u;
+                            key[v] = matrix[u][v];
+                        }
+                    }
+                }
+            }
+        }
+        logs->info(prefix);
     }
 };

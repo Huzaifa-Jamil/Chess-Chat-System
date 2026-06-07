@@ -93,6 +93,8 @@ private:
         y->height = maxNode(getHeight(y->left), getHeight(y->right)) + 1;
         x->height = maxNode(getHeight(x->left), getHeight(x->right)) + 1;
 
+        logs->info("Users AVL:- Right Rotation happens in AVL Tree");
+
         return x;
     }
 
@@ -106,6 +108,8 @@ private:
 
         x->height = maxNode(getHeight(x->left), getHeight(x->right)) + 1;
         y->height = maxNode(getHeight(y->left), getHeight(y->right)) + 1;
+
+        logs->info("Users AVL:- Left Rotation happens in AVL Tree");
 
         return y;
     }
@@ -312,7 +316,7 @@ public:
             return;
         }
 
-        string usersDisplay = "Users AVL: ";
+        string usersDisplay = "Users (AVL):- ";
         inorder(root, usersDisplay);
         usersDisplay += "END";
         logs->info(usersDisplay);
@@ -357,7 +361,7 @@ public:
         node->isConnected = true;
         node->isPlaying = false;
 
-        logs->info("User " + to_string(node->userId) + " reconnected");
+        logs->info("Server:- User " + to_string(node->userId) + " reconnected in to server");
         display();
         return true;
     }

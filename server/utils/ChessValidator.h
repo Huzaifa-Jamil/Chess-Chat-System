@@ -7,55 +7,47 @@
 class ChessValidator
 {
 private:
-
-    Logger    *logs;
+    Logger *logs;
     ChessBoard board; // reused for every validation call
 
 public:
-
     ChessValidator(Logger *logger) : logs(logger) {}
+
+    char getBoardTurn() const
+    {
+        return board.turn;
+    }
 
     bool validate(const std::string &rawMsg,
                   std::string &outMove,
                   std::string &outBoardState)
     {
-    
-        std::string data = Protocol::getData(rawMsg);
+        std::string move = Protocol::getData(rawMsg);
 
-        size_t sep = data.find('|');
-        if (sep == std::string::npos)
-        {
-            logs->warning("ChessValidator, wrong form message: " + rawMsg);
-            outMove = "INVALID";
-            return false;
-        }
-
-        std::string move       = data.substr(0, sep);
-        std::string boardState = data.substr(sep + 1);
+        while (!move.empty() && (move.back() == '\n' || move.back() == '\r'))
+            move.pop_back();
 
         if (move.size() < 4)
         {
-            logs->warning("ChessValidator, move too short: " + move);
+            logs->warning("Chess Validator:- move too short: " + move);
             outMove = "INVALID";
             return false;
         }
-
-        board.deserialize(boardState);
 
         bool ok = board.validateMove(move);
 
         if (ok)
         {
             board.applyMove(move);
-            outMove       = move;
+            outMove = move;
             outBoardState = board.serialize();
-            logs->info("ChessValidator: VALID " + move);
+            logs->info("Chess Validator:- VALID Move " + move);
         }
         else
         {
-            outMove       = "INVALID";
-            outBoardState = boardState;
-            logs->warning("ChessValidator: INVALID " + move);
+            outMove = "INVALID";
+            outBoardState = board.serialize();
+            logs->warning("Chess Validator:- INVALID Move " + move);
         }
 
         return ok;

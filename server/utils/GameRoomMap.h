@@ -4,22 +4,20 @@
 #include "GameRoom.h"
 #include "FriendGraph.h"
 
-
 static const int ROOM_MAP_SIZE = 100;
 
 class GameRoomMap
 {
 private:
-
     struct Node
     {
-        int       key;
+        int key;
         GameRoom *room;
-        Node     *next;
+        Node *next;
 
         Node(int k, GameRoom *r)
         {
-            key  = k;
+            key = k;
             room = r;
             next = NULL;
         }
@@ -28,9 +26,7 @@ private:
     Node *table[ROOM_MAP_SIZE];
 
     int nextRoomId;
-
     FriendGraph *graph;
-
     Logger *logs;
 
     int hash(int key) const
@@ -39,11 +35,10 @@ private:
     }
 
 public:
-
     GameRoomMap(FriendGraph *friendGraph, Logger *logger)
     {
-        graph      = friendGraph;
-        logs       = logger;
+        graph = friendGraph;
+        logs = logger;
         nextRoomId = 1;
 
         for (int i = 0; i < ROOM_MAP_SIZE; i++)
@@ -68,9 +63,7 @@ public:
         }
     }
 
-
-    int createRoom(QTcpSocket *p1, int userId1,
-                   QTcpSocket *p2, int userId2)
+    int createRoom(QTcpSocket *p1, int userId1, QTcpSocket *p2, int userId2)
     {
         int id = nextRoomId++;
 
@@ -78,39 +71,40 @@ public:
 
         // Insert into the hash map
         int index = hash(id);
-        Node *n   = new Node(id, room);
-        n->next   = table[index];
+        Node *n = new Node(id, room);
+        n->next = table[index];
         table[index] = n;
 
-        logs->info("GameRoomMap: room " + std::to_string(id) +
+        logs->info("GameRoom Map (Hash map):- room " + std::to_string(id) +
                    " created for users " + std::to_string(userId1) +
                    " and " + std::to_string(userId2));
 
-
         graph->addUser(userId1);
         graph->addUser(userId2);
+        graph->logMST();
 
-        // Start the room — sends START| to both players
+        // Start the room by sending START protocol to both players
         room->start();
-
+        display();
         return id;
     }
 
-    GameRoom *getRoom(int roomId) const
+    GameRoom *getRoom(int roomId)
     {
         int index = hash(roomId);
         Node *temp = table[index];
 
         while (temp != NULL)
         {
-            if (temp->key == roomId) return temp->room;
+            if (temp->key == roomId)
+                return temp->room;
             temp = temp->next;
         }
 
         return NULL;
     }
 
-    GameRoom *findRoomBySocket(QTcpSocket *socket) const
+    GameRoom *findRoomBySocket(QTcpSocket *socket)
     {
         for (int i = 0; i < ROOM_MAP_SIZE; i++)
         {
@@ -136,7 +130,7 @@ public:
 
     void closeRoom(int roomId)
     {
-        int index  = hash(roomId);
+        int index = hash(roomId);
         Node *temp = table[index];
         Node *prev = NULL;
 
@@ -147,6 +141,7 @@ public:
                 ChatSession *chat = temp->room->getChat();
                 graph->addEdge(chat->getId1(), chat->getId2());
                 graph->displayConnections(chat->getId1());
+                graph->logMST();
 
                 if (prev == NULL)
                 {
@@ -160,7 +155,8 @@ public:
                 delete temp->room;
                 delete temp;
 
-                logs->info("GameRoomMap: room " + std::to_string(roomId) + " closed");
+                logs->info("GameRoom Map (Hash map):- room " + std::to_string(roomId) + " closed");
+                display();
                 return;
             }
 
@@ -170,9 +166,9 @@ public:
     }
 
     // print all active rooms to the log
-    void display() const
+    void display()
     {
-        std::string out = "GameRoomMap active rooms Hashmap ";
+        std::string out = "GameRoom Map (Hash map):- active rooms Hashmap ";
         bool any = false;
 
         for (int i = 0; i < ROOM_MAP_SIZE; i++)
@@ -182,12 +178,16 @@ public:
             while (temp != NULL)
             {
                 out += "[room " + std::to_string(temp->key) + "] ";
-                any  = true;
+                any = true;
                 temp = temp->next;
             }
         }
 
-        if (!any) out += "NULL";
+        if (any == false)
+        {
+            out += "NULL";
+        }
+
         logs->info(out);
     }
 };

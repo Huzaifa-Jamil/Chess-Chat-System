@@ -2,24 +2,25 @@
 using namespace std;
 
 template <typename T>
+
+struct Node
+{
+    int userId;
+    T data;
+    Node *next;
+
+    Node(int Id, T value)
+    {
+        userId = Id;
+        data = value;
+        next = NULL;
+    }
+};
+
 class Stack
 {
 
 private:
-    struct Node
-    {
-        int userId;
-        T data;
-        Node *next;
-
-        Node(int Id, T value)
-        {
-            userId = Id;
-            data = value;
-            next = NULL;
-        }
-    };
-
     Node *top;
     int size;
     Logger *logs;

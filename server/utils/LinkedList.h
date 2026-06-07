@@ -33,7 +33,7 @@ private:
     void display()
     {
         LinkedListNode *temp = head;
-        std::string result = "Pending List: ";
+        std::string result = "Unauth Pending list (LinkedList):- ";
 
         while (temp != NULL)
         {
@@ -47,7 +47,7 @@ private:
     }
 
 public:
-        LinkedList(Logger *logger)
+    LinkedList(Logger *logger)
     {
         head = NULL;
         tail = NULL;

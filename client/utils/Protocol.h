@@ -1,15 +1,15 @@
 #pragma once
 #include <string>
 
-static const std::string TAG_AUTH = "AUTH";
-static const std::string TAG_CHAT = "CHAT";
-static const std::string TAG_GAME = "GAME";   // chess moves
-static const std::string TAG_START = "START"; // start gaem
-static const std::string TAG_WIN = "WIN";
-static const std::string TAG_LOSS = "LOSS";
-static const std::string TAG_TIE = "TIE";
-static const std::string TAG_END = "END";
-static const std::string TAG_WAIT = "WAIT";
+inline const std::string TAG_AUTH = "AUTH";
+inline const std::string TAG_CHAT = "CHAT";
+inline const std::string TAG_GAME = "GAME";
+inline const std::string TAG_START = "START";
+inline const std::string TAG_WIN = "WIN";
+inline const std::string TAG_LOSS = "LOSS";
+inline const std::string TAG_TIE = "TIE";
+inline const std::string TAG_END = "END";
+inline const std::string TAG_WAIT = "WAIT";
 
 static const char PROTOCOL_SEP = '|';
 

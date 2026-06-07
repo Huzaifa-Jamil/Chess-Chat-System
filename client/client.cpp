@@ -10,11 +10,14 @@
 #include "Protocol.h"
 #include "Chess.h"
 
-QTcpSocket socket;
+QTcpSocket *pSocket = nullptr;
 QMutex ioMutex;
+QMutex gameMutex;
 
 std::atomic<bool> authenticated(false);
 std::atomic<bool> running(true);
+std::atomic<bool> awaitingPromotion(false);
+std::string pendingPromoMove;
 
 GameState game;
 ChatState chat;
@@ -30,104 +33,100 @@ static void safePrint(const std::string &s)
 
 static void sendMsg(const std::string &tag, const std::string &data)
 {
-    QMetaObject::invokeMethod(&socket, [=]()
+    if (!pSocket)
+        return;
+    QMetaObject::invokeMethod(pSocket, [=]()
                               {
-        socket.write(Protocol::build(tag, data).c_str());
-        socket.flush(); }, Qt::QueuedConnection);
+        pSocket->write(Protocol::build(tag, data).c_str());
+        pSocket->flush(); }, Qt::QueuedConnection);
 }
 
 static void printBoard()
 {
     std::string out;
-    out += "\n";
-
-    out += "  -----------------------------------------\n";
-
-    if (myColor == 'b')
     {
-        // you are black flipp Rows (7 to 0), Flipped Columns (7 to 0)
-        for (int r = 7; r >= 0; r--)
+        QMutexLocker lock(&gameMutex);
+        out += "\n";
+        out += "  -----------------------------------------\n";
+
+        if (myColor == 'b')
         {
-            out += std::to_string(8 - r) + " |";
-
-            for (int c = 7; c >= 0; c--)
+            for (int r = 7; r >= 0; r--)
             {
-                if (game.board[r][c].empty())
+                out += std::to_string(8 - r) + " |";
+                for (int c = 7; c >= 0; c--)
                 {
-                    out += " .. |";
-                }
-                else
-                {
-                    char p = game.board[r][c].type;
-
-                    if (p >= 'A' && p <= 'Z')
+                    if (game.board[r][c].empty())
                     {
-                        out += " w";
-                        out += p;
-                        out += " |";
+                        out += " .. |";
                     }
                     else
                     {
-                        out += " b";
-                        out += (char)(p - 'a' + 'A');
-                        out += " |";
+                        char p = game.board[r][c].type;
+                        if (p >= 'A' && p <= 'Z')
+                        {
+                            out += " w";
+                            out += p;
+                            out += " |";
+                        }
+                        else
+                        {
+                            out += " b";
+                            out += (char)(p - 'a' + 'A');
+                            out += " |";
+                        }
                     }
                 }
+                out += "\n";
+                out += "  -----------------------------------------\n";
             }
-            out += "\n";
-            out += "  -----------------------------------------\n";
+            out += "    h    g    f    e    d    c    b    a";
         }
-
-        out += "    a    b    c    d    e    f    g    h";
-    }
-    else
-    {
-        // White's board has standard Rows (0 to 7), Standard Columns (0 to 7)
-        for (int r = 0; r < 8; r++)
+        else
         {
-            out += std::to_string(8 - r) + " |";
-
-            for (int c = 0; c < 8; c++)
+            for (int r = 0; r < 8; r++)
             {
-                if (game.board[r][c].empty())
+                out += std::to_string(8 - r) + " |";
+                for (int c = 0; c < 8; c++)
                 {
-                    out += " .. |";
-                }
-                else
-                {
-                    char p = game.board[r][c].type;
-
-                    if (p >= 'A' && p <= 'Z')
+                    if (game.board[r][c].empty())
                     {
-                        out += " w";
-                        out += p;
-                        out += " |";
+                        out += " .. |";
                     }
                     else
                     {
-                        out += " b";
-                        out += (char)(p - 'a' + 'A');
-                        out += " |";
+                        char p = game.board[r][c].type;
+                        if (p >= 'A' && p <= 'Z')
+                        {
+                            out += " w";
+                            out += p;
+                            out += " |";
+                        }
+                        else
+                        {
+                            out += " b";
+                            out += (char)(p - 'a' + 'A');
+                            out += " |";
+                        }
                     }
                 }
+                out += "\n";
+                out += "  -----------------------------------------\n";
             }
-            out += "\n";
-            out += "  -----------------------------------------\n";
+            out += "    a    b    c    d    e    f    g    h";
         }
-
-        out += "    a    b    c    d    e    f    g    h";
-    }
+    } // gameMutex released here before calling safePrint
 
     safePrint(out);
 }
 
 static void inputLoop()
 {
-    QTextStream in(stdin);
-
     while (running)
     {
-        std::string line = in.readLine().toStdString();
+        std::string line;
+        if (!std::getline(std::cin, line))
+            break;
 
         if (!running)
             break;
@@ -138,9 +137,19 @@ static void inputLoop()
         if (line == "quit")
         {
             running = false;
-            QMetaObject::invokeMethod(&socket, []()
-                                      { socket.disconnectFromHost(); }, Qt::QueuedConnection);
+            if (pSocket)
+            {
+                QMetaObject::invokeMethod(pSocket, []()
+                                          { pSocket->disconnectFromHost(); }, Qt::QueuedConnection);
+            }
             break;
+        }
+
+        if (line == "resign")
+        {
+            safePrint("[System] You resigned");
+            sendMsg(TAG_GAME, "RESIGN");
+            continue;
         }
 
         if (line == "board")
@@ -149,31 +158,65 @@ static void inputLoop()
             continue;
         }
 
-        // Its a chess move   if it ends with '/'
+        if (awaitingPromotion)
+        {
+            std::string promo = line;
+            if (promo.size() == 1 && (promo[0] == 'q' || promo[0] == 'r' || promo[0] == 'b' || promo[0] == 'n'))
+            {
+                safePrint("[System] Promotion sent: " + pendingPromoMove + promo);
+                sendMsg(TAG_GAME, pendingPromoMove + promo);
+                awaitingPromotion = false;
+            }
+            else if (promo.size() == 5 && promo.substr(0, 4) == pendingPromoMove)
+            {
+                safePrint("[System] Promotion sent: " + promo);
+                sendMsg(TAG_GAME, promo);
+                awaitingPromotion = false;
+            }
+            else
+            {
+                safePrint("[System] Choose pawn promotion: q, r, b, or n (or full move like " + pendingPromoMove + "q)");
+            }
+            continue;
+        }
+
         if (line.back() == '/')
         {
             std::string mv = line.substr(0, line.size() - 1);
             if (mv.empty())
             {
-                safePrint("[System] Empty move command");
+                safePrint("[System] Warning, Your move command is empty");
                 continue;
             }
 
-            if (game.validateMove(mv))
+            bool ok = false;
+            char turn = 'w';
             {
-                game.applyMove(mv);
+                QMutexLocker lock(&gameMutex);
+                turn = game.chessBoard.turn;
+                if (turn != myColor)
+                {
+                    safePrint("[System] Warning, Not your turn (you are " +
+                              std::string(myColor == 'w' ? "White" : "Black") + ")");
+                }
+                else
+                {
+                    ok = game.validateMove(mv);
+                }
+            }
+            if (turn == myColor && ok)
+            {
                 safePrint("[System] Move sent: " + mv);
                 sendMsg(TAG_GAME, mv);
-                printBoard();
             }
-            else
+            else if (turn == myColor)
             {
                 safePrint("[System] Illegal move");
             }
             continue;
         }
 
-        // treat everything else as a direct chat message
+        // Everything else is a chat message
         safePrint("[You] " + line);
         sendMsg(TAG_CHAT, line);
     }
@@ -182,63 +225,35 @@ static void inputLoop()
 int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
+    pSocket = new QTcpSocket();
 
-    // this code is only used for testing purpose on local host
+    pSocket->connectToHost("104.198.200.12", 8080);
 
-    std::string targetServerIp = "127.0.0.1";
-    std::string localBindIp = "";
+    QObject::connect(pSocket, &QTcpSocket::connected, []()
+                     { safePrint("[Server] Connection Successful"); });
 
-    if (argc > 1)
-    {
-        std::string arg = argv[1];
-        if (arg.rfind("127.", 0) == 0 || arg == "::1")
-        {
-            // If loopback IP is provided, bind local client endpoint to it
-            // so the server sees the connection originating from this distinct IP
-            localBindIp = arg;
-            targetServerIp = "127.0.0.1";
-        }
-        else
-        {
-            // Otherwise, treat as target remote server IP (GCP public deployment)
-            targetServerIp = arg;
-        }
-    }
-
-    if (!localBindIp.empty())
-    {
-        socket.bind(QHostAddress(QString::fromStdString(localBindIp)), 0);
-    }
-
-    // I can change the targetserverip to my public gcp servers ip
-
-    socket.connectToHost(QString::fromStdString(targetServerIp), 8080);
-
-    QObject::connect(&socket, &QTcpSocket::connected, []()
-                     { safePrint("[Server] Connection Successfull"); });
-
-    QObject::connect(&socket, &QTcpSocket::readyRead, [&]()
+    QObject::connect(pSocket, &QTcpSocket::readyRead, [&]()
                      {
-        while (socket.canReadLine())
+        while (pSocket->canReadLine())
         {
-            std::string msg = socket.readLine().toStdString();
+            std::string msg = pSocket->readLine().toStdString();
             msg = Protocol::clean(msg);
 
-            std::string tag = Protocol::getTag(msg);
+            std::string tag  = Protocol::getTag(msg);
             std::string data = Protocol::getData(msg);
 
             if (tag == TAG_AUTH)
             {
                 if (data.find("SEND_TOKEN") != std::string::npos)
                 {
-                    safePrint("[System] Server is asking for AUTHENTACTION TOKEN");
+                    safePrint("[System] Server is asking for AUTHENTICATION TOKEN");
                     sendMsg(TAG_AUTH, "CHESS123456PLEASEAUTH");
-                    safePrint("[System] AUTHENTACTION TOKEN sent to Server");
+                    safePrint("[System] AUTHENTICATION TOKEN sent to Server");
                 }
                 else if (data.find("OK") != std::string::npos)
                 {
                     authenticated = true;
-                    safePrint("[System] Authentication Successfull");
+                    safePrint("[System] Authentication Successful");
                 }
             }
             else if (tag == TAG_CHAT)
@@ -249,17 +264,31 @@ int main(int argc, char *argv[])
             {
                 if (data == "INVALID")
                 {
-                    safePrint("[System] Move rejected by server!");
+                    // Server rejected our move
+                    safePrint("[Server] Move rejected by server!");
+                }
+                else if (data == "CHECK")
+                {
+                    safePrint("[System] WARNING: Your King is in CHECK!");
+                }
+                else if (data.find("PROMOTE|") == 0)
+                {
+                    pendingPromoMove = data.substr(8);
+                    awaitingPromotion = true;
+                    safePrint("[System] Pawn PROMOTION REQUIRED for " + pendingPromoMove + " Please enter q, r, b, or n");
                 }
                 else
                 {
                     size_t p = data.find('|');
                     if (p != std::string::npos)
                     {
-                        std::string mv = data.substr(0, p);
+                        std::string mv    = data.substr(0, p);
                         std::string board = data.substr(p + 1);
-                        game.deserialize(board);
-                        safePrint("[System] Opponent move: " + mv);
+                        {
+                            QMutexLocker lock(&gameMutex);
+                            game.deserialize(board);
+                        }
+                        safePrint("[Server] Move Verified By Server : " + mv);
                         printBoard();
                     }
                 }
@@ -276,46 +305,101 @@ int main(int argc, char *argv[])
                         std::string colorStr = data.substr(p1 + 1, p2 - p1 - 1);
                         std::string boardState = data.substr(p2 + 1);
                         if (!colorStr.empty())
-                        {
                             myColor = colorStr[0];
+                        {
+                            QMutexLocker lock(&gameMutex);
+                            game.deserialize(boardState);
                         }
-                        game.deserialize(boardState);
+
+                        std::string out;
+
+                        out += "\n";
+                        out += "=========================================\n";
+                        out += "          THE BOARD IS SET\n";
+                        out += "=========================================\n";
+                        out += "\n";
+
+                        out += "In chess, as in life,\n";
+                        out += "every move has consequences.\n";
+                        out += "\n";
+
+                        out += "Two kings enter.\n";
+                        out += "Only one shall prevail.\n";
+                        out += "\n";
+
+                        out += "Opponent : User " + oppId + "\n";
 
                         if (myColor == 'w')
                         {
-                            safePrint("[System] Game Started against User " + oppId + "! You are playing as " + "White");
+                            out += "You are WHITE\n";
+                            out += "> Opponent is BLACK\n";
+                            out += "\n";
+                            out += "White Commands First Move\n";
+                            out += "Black Awaits the Challenge\n";
                         }
-                        else 
+                        else
                         {
-                            safePrint("[System] Game Started against User " + oppId + "! You are playing as " + "Black");
+                            out += "You are BLACK\n";
+                            out += "Opponent is WHITE\n";
+                            out += "\n";
+                            out += "White Commands First Move\n";
+                            out += "Black Awaits the Challenge\n";
+                        }
+
+                        out += "\n";
+                        out += "Let the battle begin!\n";
+                        out += "=========================================\n";
+
+                        if (myColor == 'w')
+                        {
+                            safePrint(out);
+                        }
+                        else
+                        {
+                            safePrint(out);
                         }
                     }
                     else
                     {
                         safePrint("[System] Game Started");
+                        QMutexLocker lock(&gameMutex);
                         game.reset();
                     }
                 }
                 else
                 {
                     safePrint("[System] Game Started");
+                    QMutexLocker lock(&gameMutex);
                     game.reset();
                 }
                 printBoard();
             }
             else if (tag == TAG_WIN)
+            {
+                awaitingPromotion = false;
                 safePrint("[System] *** You WIN ***");
+            }
             else if (tag == TAG_LOSS)
+            {
+                awaitingPromotion = false;
                 safePrint("[System] *** You LOSE ***");
+            }
             else if (tag == TAG_TIE)
-                safePrint("[System] *** Its a DRAW ***");
+            {
+                safePrint("[System] *** It's a DRAW ***");
+            }
             else if (tag == TAG_WAIT)
+            {
                 safePrint("[Server] " + data);
+            }
             else if (tag == TAG_END)
+            {
+                awaitingPromotion = false;
                 safePrint("[System] Match ended");
+            }
         } });
 
-    QObject::connect(&socket, &QTcpSocket::disconnected, []()
+    QObject::connect(pSocket, &QTcpSocket::disconnected, []()
                      {
         safePrint("[Server] Server Disconnected during mid session");
         running = false;
@@ -324,5 +408,11 @@ int main(int argc, char *argv[])
     QThread *t = QThread::create(inputLoop);
     t->start();
 
-    return a.exec();
+    int ret = a.exec();
+    running = false;
+    t->quit();
+    t->wait(2000);
+    delete t;
+    delete pSocket;
+    return ret;
 }

@@ -105,9 +105,27 @@ chesscord/
 - **CMake** 3.16 or higher
 - **C++17** or higher
 - **VS Code** with the CMake Tools extension
-- If you dont want to clone the repo just Install the Client Release V5.0.0 form Releases: https://github.com/Huzaifa-Jamil/Chesscord/releases/download/v5.0.0/ChessCord_v5.0.0_Setup.exe
 
 ---
+
+## Live Server Invitation
+
+You are welcome to try Chesscord online.
+
+A public Chesscord server is currently running on Google Cloud Platform and is available for anyone who would like to test the project.
+
+To join:
+
+1. Download and install the latest client from the Releases section Link: https://github.com/Huzaifa-Jamil/Chesscord/releases/download/v5.0.0/ChessCord_v5.0.0_Setup.exe 
+2. Launch the client.
+3. Connect and start playing chess with other online players.
+
+The public server is planned to remain online from **June 9, 2026** until **July 9, 2026** (Only if my GCP credits do not run out).
+
+Please note that the server is hosted on a small GCP e2-micro instance for demonstration and testing purposes. Temporary downtime may occur during maintenance, updates or resource limitations.
+
+Have fun and feel free to report bugs, suggestions, or feedback through GitHub Issues.
+
 
 ## How to Build & Run (Locally)
 
@@ -195,10 +213,10 @@ client\build\client.exe
 ./client/build/client
 ```
 
-> **Note:** The client connects to the live GCP server at `104.198.200.12` by default.  
-> To connect to a local server instead, change the IP in `client/client.cpp`:
+> **Note:** The client connects to the GCP server (Windows local Host) at `127.0.0.1` by default.
+> To connect to your local server instead (on Linus etc.), change the IP in `client/client.cpp`:
 > ```cpp
-> pSocket->connectToHost("127.0.0.1", 8080);
+> pSocket->connectToHost("your local host address", 8080);
 > ```
 > Then rebuild the client. (Repeat Step 1,2 and 3)
 

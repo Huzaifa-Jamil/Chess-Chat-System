@@ -105,16 +105,19 @@ chesscord/
 - **CMake** 3.16 or higher
 - **C++17** or higher
 - **VS Code** with the CMake Tools extension
+- If you dont want to clone the repo just Install the Client Release V5.0.0 form Releases: https://github.com/Huzaifa-Jamil/Chesscord/releases/download/v5.0.0/ChessCord_v5.0.0_Setup.exe
 
 ---
 
-## How to Build & Run
+## How to Build & Run (Locally)
+
+Make Sure you install CMake Extension in VS Code *(CMake Tools by Microsoft)*
 
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/Huzaifa-Jamil/ChessCord.git
-cd ChessCord
+git clone https://github.com/Huzaifa-Jamil/Chesscord.git
+cd Chesscord
 ```
 
 ---
@@ -124,14 +127,14 @@ cd ChessCord
 Open the `server/` folder as its own VS Code workspace:
 
 ```bash
-code server
+ cd server
 ```
 
 In VS Code:
 
 1. Press `Ctrl + Shift + P` → **CMake: Configure**
-2. Select your compiler (e.g. GCC or MSVC with Qt6)
-3. Press `Ctrl + Shift + P` → **CMake: Build**
+2. Select your compiler (e.g. GCC or G++ with Qt6)
+3. Press `Ctrl + Shift + P` → **CMake: Build** OR Just Open server.cpp File and press F7 Key to initiate build commands
 
 The compiled binary will be placed in:
 
@@ -164,14 +167,14 @@ You should see:
 Open the `client/` folder as its own VS Code workspace *(separate window from the server)*:
 
 ```bash
-code client
+ cd client
 ```
 
 In VS Code:
 
 1. Press `Ctrl + Shift + P` → **CMake: Configure**
 2. Select your compiler
-3. Press `Ctrl + Shift + P` → **CMake: Build**
+3. Press `Ctrl + Shift + P` → **CMake: Build** OR Just Open client.cpp File and press F7 Key to initiate build commands.
 
 The compiled binary will be placed in:
 
@@ -192,12 +195,12 @@ client\build\client.exe
 ./client/build/client
 ```
 
-> **Note:** The client connects to the live GCP server at `104.198.200.12:8080` by default.  
+> **Note:** The client connects to the live GCP server at `104.198.200.12` by default.  
 > To connect to a local server instead, change the IP in `client/client.cpp`:
 > ```cpp
 > pSocket->connectToHost("127.0.0.1", 8080);
 > ```
-> Then rebuild the client.
+> Then rebuild the client. (Repeat Step 1,2 and 3)
 
 ---
 
@@ -211,12 +214,12 @@ Once connected and matched, type in the terminal:
 | `board` | Reprint the current board |
 | `resign` | Resign the current game |
 | `q` or `r` or `b` or `n` | Choose pawn promotion piece when prompted |
-| Any other text | Sends as a chat message to your opponent |
+| `Any other text` | Sends as a chat message to your opponent |
 | `quit` | Disconnect and exit |
 
 ---
 
-## Deploying the Server on GCP (Ubuntu 22.04)
+## Deploying the our own Server on GCP (Ubuntu 22.04 Only If you want Deployment)
 
 ### Step 1: SSH into your instance and install dependencies
 
@@ -228,8 +231,8 @@ sudo apt install -y cmake g++ qt6-base-dev
 ### Step 2: Clone and build
 
 ```bash
-git clone https://github.com/Huzaifa-Jamil/ChessCord.git
-cd ChessCord/server
+git clone https://github.com/Huzaifa-Jamil/Chesscord.git
+cd Chesscord/server
 mkdir build && cd build
 cmake ..
 make
@@ -245,12 +248,21 @@ nohup ./server > server.log 2>&1 &
 
 In GCP Console → VPC Network → Firewall Rules → allow **TCP port 8080** for all sources (`0.0.0.0/0`).
 
+> **Note:** To connects clients to the Your Own live GCP server at server's IP Address Provided by Cloud provider.
+> Copy the IP address at which server is live.
+> For connecting Clients to your Online server , change the IP in `client/client.cpp`:
+> ```cpp
+> pSocket->connectToHost("your server's IP", 8080);
+> ```
+> Then rebuild the client. (Repeat Step 1,2 and 3)
+> Now when you start the client, your server's log will tell about the that client's connection.
+
 ---
 
 ## Notes
 
-- The server uses **no STL containers** — all data structures are written from scratch.
+- The server uses **no STL containers**, all data structures are written from scratch.
 - Move validation runs on **both sides**: the client validates before sending, the server re validates on receive. A mismatch results in a `GAME|INVALID` response.
-- On opponent disconnect mid game, the server sends `WIN|` and `END|` to the surviving player and immediately re-queues them.
+- On opponent disconnect mid game, the server sends `WIN|` and `END|` to the surviving player and immediately requeues them.
 - Reconnecting from the same IP restores the previous user session automatically.
 - All server events are logged via the `Logger` class with timestamped entries.

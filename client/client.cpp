@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
     QCoreApplication a(argc, argv);
     pSocket = new QTcpSocket();
 
-    pSocket->connectToHost("104.198.200.12", 8080);
+    pSocket->connectToHost("127.0.0.1", 8080);
 
     QObject::connect(pSocket, &QTcpSocket::connected, []()
                      { safePrint("[Server] Connection Successful"); });

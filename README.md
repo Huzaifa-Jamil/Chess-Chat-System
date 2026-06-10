@@ -99,6 +99,21 @@ chesscord/
 
 ---
 
+## In-Game Commands
+
+Once connected and matched, type in the terminal:
+
+| Input | Action |
+|---|---|
+| `e2e4/` | Submit a chess move (always end with `/`) |
+| `board` | Reprint the current board |
+| `resign` | Resign the current game |
+| `q` or `r` or `b` or `n` | Choose pawn promotion piece when prompted |
+| `Any other text` | Sends as a chat message to your opponent |
+| `quit` | Disconnect and exit |
+
+---
+
 ## Requirements
 
 - **Qt6** (Core + Network modules)
@@ -222,20 +237,6 @@ client\build\client.exe
 
 ---
 
-## In-Game Commands
-
-Once connected and matched, type in the terminal:
-
-| Input | Action |
-|---|---|
-| `e2e4/` | Submit a chess move (always end with `/`) |
-| `board` | Reprint the current board |
-| `resign` | Resign the current game |
-| `q` or `r` or `b` or `n` | Choose pawn promotion piece when prompted |
-| `Any other text` | Sends as a chat message to your opponent |
-| `quit` | Disconnect and exit |
-
----
 
 ## Deploying the our own Server on GCP (Ubuntu 22.04 Only If you want Deployment)
 

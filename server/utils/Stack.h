@@ -19,101 +19,103 @@ struct StackNode
 };
 
 template <typename T>
+
 class Stack
 {
 
-private:
-    StackNode<T> *topNode;
-    int stackSize;
-    Logger *logs;
+    private:
+        StackNode<T> *topNode;
+        int stackSize;
+        Logger *logs;
 
-public:
-    Stack(Logger *log)
-    {
-        this->logs = log;
-        topNode = NULL;
-        stackSize = 0;
-    }
-
-    ~Stack()
-    {
-        clear();
-    }
-
-    bool isEmpty()
-    {
-        return topNode == NULL;
-    }
-
-    int getSize()
-    {
-        return stackSize;
-    }
-
-    void display()
-    {
-        if (isEmpty())
+    public:
+        Stack(Logger *log)
         {
-            logs->warning("Stack is Empty");
-            return;
+            this->logs = log;
+            topNode = NULL;
+            stackSize = 0;
         }
 
-        std::string stack = "Stack (top to bottom): ";
-        StackNode<T> *current = topNode;
-
-        while (current != NULL)
+        ~Stack()
         {
-            stack += "[" + std::to_string(current->userId) + "] -> ";
-            current = current->next;
+            clear();
         }
 
-        stack += "END";
-        logs->info(stack);
-    }
-
-    void clear()
-    {
-        while (!isEmpty())
+        bool isEmpty()
         {
-            pop();
-        }
-    }
-
-    void push(int id, T value)
-    {
-        StackNode<T> *newNode = new StackNode<T>(id, value);
-        newNode->next = topNode;
-        topNode = newNode;
-
-        stackSize++;
-        logs->info("User [" + std::to_string(id) + "] pushed onto stack");
-        display();
-    }
-
-    void pop()
-    {
-        if (isEmpty())
-        {
-            logs->warning("Stack is Empty");
-            return;
+            return topNode == NULL;
         }
 
-        StackNode<T> *temp = topNode;
-        topNode = topNode->next;
-
-        stackSize--;
-        logs->info("User [" + std::to_string(temp->userId) + "] popped from stack");
-        delete temp;
-        display();
-    }
-
-    T peek()
-    {
-        if (isEmpty())
+        int getSize()
         {
-            logs->warning("Stack is Empty");
-            return T{};
+            return stackSize;
         }
-        return topNode->data;
-    }
+
+        void display()
+        {
+            if (isEmpty())
+            {
+                logs->warning("Stack is Empty");
+                return;
+            }
+
+            std::string stack = "Stack (top to bottom): ";
+            StackNode<T> *current = topNode;
+
+            while (current != NULL)
+            {
+                stack += "[" + std::to_string(current->userId) + "] -> ";
+                current = current->next;
+            }
+
+            stack += "END";
+            logs->info(stack);
+        }
+
+        void clear()
+        {
+            while (!isEmpty())
+            {
+                pop();
+            }
+        }
+
+        void push(int id, T value)
+        {
+            StackNode<T> *newNode = new StackNode<T>(id, value);
+            newNode->next = topNode;
+            topNode = newNode;
+            stackSize++;
+            
+            logs->info("User [" + std::to_string(id) + "] pushed onto stack");
+            display();
+        }
+
+        void pop()
+        {
+            if (isEmpty())
+            {
+                logs->warning("Stack is Empty");
+                return;
+            }
+
+            StackNode<T> *temp = topNode;
+            topNode = topNode->next;
+            stackSize--;
+
+            logs->info("User [" + std::to_string(temp->userId) + "] popped from stack");
+            delete temp;
+            display();
+        }
+
+        T peek()
+        {
+            if (isEmpty())
+            {
+                logs->warning("Stack is Empty");
+                return T{};
+            }
+
+            return topNode->data;
+        }
 };

@@ -8,186 +8,187 @@ static const int ROOM_MAP_SIZE = 100;
 
 class GameRoomMap
 {
-private:
-    struct Node
-    {
-        int key;
-        GameRoom *room;
-        Node *next;
-
-        Node(int k, GameRoom *r)
+    private:
+        struct Node
         {
-            key = k;
-            room = r;
-            next = NULL;
-        }
-    };
+            int key;
+            GameRoom *room;
+            Node *next;
 
-    Node *table[ROOM_MAP_SIZE];
-
-    int nextRoomId;
-    FriendGraph *graph;
-    Logger *logs;
-
-    int hash(int key) const
-    {
-        return (int)(((unsigned int)key * 2654435761u) % ROOM_MAP_SIZE);
-    }
-
-public:
-    GameRoomMap(FriendGraph *friendGraph, Logger *logger)
-    {
-        graph = friendGraph;
-        logs = logger;
-        nextRoomId = 1;
-
-        for (int i = 0; i < ROOM_MAP_SIZE; i++)
-        {
-            table[i] = NULL;
-        }
-    }
-
-    ~GameRoomMap()
-    {
-        for (int i = 0; i < ROOM_MAP_SIZE; i++)
-        {
-            Node *current = table[i];
-
-            while (current != NULL)
+            Node(int k, GameRoom *r)
             {
-                Node *next = current->next;
-                delete current->room;
-                delete current;
-                current = next;
+                key = k;
+                room = r;
+                next = NULL;
+            }
+        };
+
+        Node *table[ROOM_MAP_SIZE];
+
+        int nextRoomId;
+        FriendGraph *graph;
+        Logger *logs;
+
+        int hash(int key) const
+        {
+            return (int)(((unsigned int)key * 2654435761u) % ROOM_MAP_SIZE);
+        }
+
+    public:
+        GameRoomMap(FriendGraph *friendGraph, Logger *logger)
+        {
+            graph = friendGraph;
+            logs = logger;
+            nextRoomId = 1;
+
+            for (int i = 0; i < ROOM_MAP_SIZE; i++)
+            {
+                table[i] = NULL;
             }
         }
-    }
 
-    int createRoom(QTcpSocket *p1, int userId1, QTcpSocket *p2, int userId2)
-    {
-        int id = nextRoomId++;
-
-        GameRoom *room = new GameRoom(id, p1, userId1, p2, userId2, logs);
-
-        // Insert into the hash map
-        int index = hash(id);
-        Node *n = new Node(id, room);
-        n->next = table[index];
-        table[index] = n;
-
-        logs->info("GameRoom Map (Hash map):- room " + std::to_string(id) +
-                   " created for users " + std::to_string(userId1) +
-                   " and " + std::to_string(userId2));
-
-        graph->addUser(userId1);
-        graph->addUser(userId2);
-        graph->logMST();
-
-        // Start the room by sending START protocol to both players
-        room->start();
-        display();
-        return id;
-    }
-
-    GameRoom *getRoom(int roomId)
-    {
-        int index = hash(roomId);
-        Node *temp = table[index];
-
-        while (temp != NULL)
+        ~GameRoomMap()
         {
-            if (temp->key == roomId)
-                return temp->room;
-            temp = temp->next;
+            for (int i = 0; i < ROOM_MAP_SIZE; i++)
+            {
+                Node *current = table[i];
+
+                while (current != NULL)
+                {
+                    Node *next = current->next;
+                    delete current->room;
+                    delete current;
+                    current = next;
+                }
+            }
         }
 
-        return NULL;
-    }
-
-    GameRoom *findRoomBySocket(QTcpSocket *socket)
-    {
-        for (int i = 0; i < ROOM_MAP_SIZE; i++)
+        int createRoom(QTcpSocket *p1, int userId1, QTcpSocket *p2, int userId2)
         {
-            Node *temp = table[i];
+            int id = nextRoomId++;
+
+            GameRoom *room = new GameRoom(id, p1, userId1, p2, userId2, logs);
+
+            // Insert into the hash map
+            int index = hash(id);
+            Node *n = new Node(id, room);
+            n->next = table[index];
+            table[index] = n;
+
+            logs->info("GameRoom Map (Hash map):- room " + std::to_string(id) +
+                    " created for users " + std::to_string(userId1) +
+                    " and " + std::to_string(userId2));
+
+            graph->addUser(userId1);
+            graph->addUser(userId2);
+            graph->logMST();
+
+            // Start the room by sending START protocol to both players
+            room->start();
+            display();
+            
+            return id;
+        }
+
+        GameRoom *getRoom(int roomId)
+        {
+            int index = hash(roomId);
+            Node *temp = table[index];
 
             while (temp != NULL)
             {
-                ChatSession *chat = temp->room->getChat();
-
-                // if this socket is player1 or player2 in this room
-                if (chat->getPlayer1() == socket ||
-                    chat->getPlayer2() == socket)
-                {
+                if (temp->key == roomId)
                     return temp->room;
-                }
-
                 temp = temp->next;
             }
+
+            return NULL;
         }
 
-        return NULL;
-    }
-
-    void closeRoom(int roomId)
-    {
-        int index = hash(roomId);
-        Node *temp = table[index];
-        Node *prev = NULL;
-
-        while (temp != NULL)
+        GameRoom *findRoomBySocket(QTcpSocket *socket)
         {
-            if (temp->key == roomId)
+            for (int i = 0; i < ROOM_MAP_SIZE; i++)
             {
-                ChatSession *chat = temp->room->getChat();
-                graph->addEdge(chat->getId1(), chat->getId2());
-                graph->displayConnections(chat->getId1());
-                graph->logMST();
+                Node *temp = table[i];
 
-                if (prev == NULL)
+                while (temp != NULL)
                 {
-                    table[index] = temp->next;
-                }
-                else
-                {
-                    prev->next = temp->next;
-                }
+                    ChatSession *chat = temp->room->getChat();
 
-                delete temp->room;
-                delete temp;
+                    // if this socket is player1 or player2 in this room
+                    if (chat->getPlayer1() == socket ||
+                        chat->getPlayer2() == socket)
+                    {
+                        return temp->room;
+                    }
 
-                logs->info("GameRoom Map (Hash map):- room " + std::to_string(roomId) + " closed");
-                display();
-                return;
+                    temp = temp->next;
+                }
             }
 
-            prev = temp;
-            temp = temp->next;
+            return NULL;
         }
-    }
 
-    // print all active rooms to the log
-    void display()
-    {
-        std::string out = "GameRoom Map (Hash map):- active rooms Hashmap ";
-        bool any = false;
-
-        for (int i = 0; i < ROOM_MAP_SIZE; i++)
+        void closeRoom(int roomId)
         {
-            Node *temp = table[i];
+            int index = hash(roomId);
+            Node *temp = table[index];
+            Node *prev = NULL;
 
             while (temp != NULL)
             {
-                out += "[room " + std::to_string(temp->key) + "] ";
-                any = true;
+                if (temp->key == roomId)
+                {
+                    ChatSession *chat = temp->room->getChat();
+                    graph->addEdge(chat->getId1(), chat->getId2());
+                    graph->displayConnections(chat->getId1());
+                    graph->logMST();
+
+                    if (prev == NULL)
+                    {
+                        table[index] = temp->next;
+                    }
+                    else
+                    {
+                        prev->next = temp->next;
+                    }
+
+                    delete temp->room;
+                    delete temp;
+
+                    logs->info("GameRoom Map (Hash map):- room " + std::to_string(roomId) + " closed");
+                    display();
+                    return;
+                }
+
+                prev = temp;
                 temp = temp->next;
             }
         }
 
-        if (any == false)
+        // print all active rooms to the log
+        void display()
         {
-            out += "NULL";
-        }
+            std::string out = "GameRoom Map (Hash map):- active rooms Hashmap ";
+            bool any = false;
 
-        logs->info(out);
-    }
+            for (int i = 0; i < ROOM_MAP_SIZE; i++)
+            {
+                Node *temp = table[i];
+
+                while (temp != NULL)
+                {
+                    out += "[room " + std::to_string(temp->key) + "] ";
+                    any = true;
+                    temp = temp->next;
+                }
+            }
+
+            if (any == false)
+            {
+                out += "NULL";
+            }
+
+            logs->info(out);
+        }
 };

@@ -7,196 +7,204 @@ template <typename T>
 class Queue
 {
 
-private:
-    struct Node
-    {
-        int userId;
-        T socket;
-        Node *next;
-
-        Node(int Id, T value)
+    private:
+        struct Node
         {
-            userId = Id;
-            socket = value;
-            next = NULL;
+            int userId;
+            T socket;
+            Node *next;
+
+            Node(int Id, T value)
+            {
+                userId = Id;
+                socket = value;
+                next = NULL;
+            }
+        };
+
+        Node *front;
+        Node *rear;
+        int size;
+        Logger *logs;
+
+    public:
+        Queue(Logger *Logger)
+        {
+            this->logs = Logger;
+            front = rear = NULL;
+            size = 0;
         }
-    };
 
-    Node *front;
-    Node *rear;
-    int size;
-    Logger *logs;
-
-public:
-    Queue(Logger *Logger)
-    {
-        this->logs = Logger;
-        front = rear = NULL;
-        size = 0;
-    }
-
-    ~Queue()
-    {
-        clear();
-    }
-
-    bool isEmpty()
-    {
-        return front == NULL;
-    }
-
-    int getSize()
-    {
-        return size;
-    }
-
-    bool contains(int id)
-    {
-        if (isEmpty())
+        ~Queue()
         {
+            clear();
+        }
+
+        bool isEmpty()
+        {
+            return front == NULL;
+        }
+
+        int getSize()
+        {
+            return size;
+        }
+
+        bool contains(int id)
+        {
+            if (isEmpty())
+            {
+                return false;
+            }
+
+            Node *current = front;
+
+            do
+            {
+                if (current->userId == id)
+                {
+                    return true;
+                }
+
+                current = current->next;
+            } 
+            while (current != front);
+
             return false;
         }
 
-        Node *current = front;
-
-        do
+        void display()
         {
-            if (current->userId == id)
+            if (isEmpty())
             {
-                return true;
-            }
-
-            current = current->next;
-        } while (current != front);
-
-        return false;
-    }
-
-    void display()
-    {
-        if (isEmpty())
-        {
-            logs->info("Users Queue (Queue):- END");
-            return;
-        }
-
-        string userQueue = "Users Queue (Queue):- ";
-        Node *current = front;
-
-        do
-        {
-            userQueue += "[" + to_string(current->userId) + "], ";
-            current = current->next;
-        } while (current != front);
-
-        userQueue += "END";
-        logs->info(userQueue);
-    }
-
-    void clear()
-    {
-        while (!(isEmpty()))
-        {
-            dequeue();
-        }
-    }
-
-    int getFrontId()
-    {
-        if (isEmpty())
-        {
-            return -1;
-        }
-
-        return front->userId;
-    }
-
-    void enqueue(int id, T value)
-    {
-        if (contains(id))
-        {
-            logs->info("Users Queue (Queue):- user [" + to_string(id) + "] already in queue, skipping them");
-            return;
-        }
-
-        Node *newNode = new Node(id, value);
-
-        if (isEmpty())
-        {
-            front = rear = newNode;
-            rear->next = front;
-        }
-        else
-        {
-            rear->next = newNode;
-            rear = newNode;
-            rear->next = front;
-        }
-
-        size++;
-        display();
-    }
-
-    void remove(int id)
-    {
-        if (isEmpty())
-        {
-            return;
-        }
-
-        Node *current = front;
-        Node *prev = rear;
-
-        do
-        {
-            if (current->userId == id)
-            {
-                if (current == front && current == rear)
-                {
-                    front = rear = NULL;
-                }
-                else
-                {
-                    prev->next = current->next;
-                    if (current == front)
-                        front = current->next;
-                    if (current == rear)
-                        rear = prev;
-                }
-                delete current;
-                size--;
-                display();
+                logs->info("Users Queue (Queue):- END");
                 return;
             }
 
-            prev = current;
-            current = current->next;
+            string userQueue = "Users Queue (Queue):- ";
+            Node *current = front;
 
-        } while (current != front);
-    }
+            do
+            {
+                userQueue += "[" + to_string(current->userId) + "], ";
+                current = current->next;
+            } 
+            while (current != front);
 
-    void dequeue()
-    {
-        if (isEmpty())
-        {
-            return;
+            userQueue += "END";
+            logs->info(userQueue);
         }
 
-        Node *temp = front;
-
-        if (front == rear)
+        void clear()
         {
-            front = rear = NULL;
-        }
-        else
-        {
-            front = front->next;
-            rear->next = front;
+            while (!(isEmpty()))
+            {
+                dequeue();
+            }
         }
 
-        size--;
+        int getFrontId()
+        {
+            if (isEmpty())
+            {
+                return -1;
+            }
 
-        delete temp;
-        display();
-    }
+            return front->userId;
+        }
+
+        void enqueue(int id, T value)
+        {
+            if (contains(id))
+            {
+                logs->info("Users Queue (Queue):- user [" + to_string(id) + "] already in queue, skipping them");
+                return;
+            }
+
+            Node *newNode = new Node(id, value);
+
+            if (isEmpty())
+            {
+                front = rear = newNode;
+                rear->next = front;
+            }
+            else
+            {
+                rear->next = newNode;
+                rear = newNode;
+                rear->next = front;
+            }
+
+            size++;
+            display();
+        }
+
+        void remove(int id)
+        {
+            if (isEmpty())
+            {
+                return;
+            }
+
+            Node *current = front;
+            Node *prev = rear;
+
+            do
+            {
+                if (current->userId == id)
+                {
+                    if (current == front && current == rear)
+                    {
+                        front = rear = NULL;
+                    }
+                    else
+                    {
+                        prev->next = current->next;
+                        if (current == front)
+                        {
+                            front = current->next;
+                        }
+
+                        if (current == rear)
+                        {
+                            rear = prev;
+                        }
+                    }
+
+                    delete current;
+                    size--;
+                    display();
+                    return;
+                }
+
+                prev = current;
+                current = current->next;
+
+            } 
+            while (current != front);
+        }
+
+        void dequeue()
+        {
+            if (isEmpty())
+            {
+                return;
+            }
+
+            Node *temp = front;
+
+            if (front == rear)
+            {
+                front = rear = NULL;
+            }
+            else
+            {
+                front = front->next;
+                rear->next = front;
+            }
+
+            size--;
+            delete temp;
+            display();
+        }
 };

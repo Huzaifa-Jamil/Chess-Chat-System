@@ -27,9 +27,11 @@ HashMap activeUsers(&logs);
 FriendGraph friendGraph(&logs);
 GameRoomMap activeRooms(&friendGraph, &logs);
 
+// constants
 static const std::string AUTH_TOKEN = "CHESS123456PLEASEAUTH";
 static const int MAX_TOKEN_SIZE = 21;
 
+// methods
 void handleQueue();
 void promoteToServer(QTcpSocket *socket, std::string ip);
 void handleNewConnection(QTcpSocket *socket);
@@ -37,10 +39,13 @@ void handleNewConnection(QTcpSocket *socket);
 void handleQueue()
 {
     if (waitingQueue.getSize() < 2)
+    {
         return;
+    }
 
     int idPlayer1 = waitingQueue.getFrontId();
     waitingQueue.dequeue();
+
     int idPlayer2 = waitingQueue.getFrontId();
     waitingQueue.dequeue();
 
@@ -53,6 +58,7 @@ void handleQueue()
         return;
     }
 
+    // Change player's status
     player1->isPlaying = true;
     player2->isPlaying = true;
 
@@ -63,21 +69,23 @@ void handleQueue()
     QObject::disconnect(player2->socket, &QTcpSocket::disconnected, nullptr, nullptr);
 
     // Create room
-    int roomId = activeRooms.createRoom(
-        player1->socket, idPlayer1,
-        player2->socket, idPlayer2);
+    int roomId = activeRooms.createRoom(player1->socket, idPlayer1, player2->socket, idPlayer2);
 
     activeRooms.display();
 
     QObject::connect(player1->socket, &QTcpSocket::readyRead, [=]()
-                     {
+    {
         while (player1->socket->canReadLine())
         {
             QByteArray raw  = player1->socket->readLine();
             std::string msg = raw.toStdString();
 
             GameRoom *room = activeRooms.getRoom(roomId);
-            if (room == NULL) return;
+
+            if (room == NULL) 
+            {
+                return;
+            }
 
             room->handleMessage(player1->socket, msg);
 
@@ -86,8 +94,9 @@ void handleQueue()
                 activeRooms.closeRoom(roomId);
                 friendGraph.displayAll();
 
-                // Re-enqueue player1
+                // Reenqueue player1
                 Node *n1 = users.findById(idPlayer1);
+
                 if (n1 != NULL && n1->isConnected)
                 {
                     n1->isPlaying = false;
@@ -98,18 +107,21 @@ void handleQueue()
                     QObject::connect(n1->socket, &QTcpSocket::disconnected, [=]()
                     {
                         Node *node = users.findById(idPlayer1);
+
                         if (node != NULL) {
                             node->isConnected = false;
                             node->isPlaying = false;
                         }
+
                         activeUsers.remove(idPlayer1);
                         waitingQueue.remove(idPlayer1);
                         logs.info("Server:- User " + std::to_string(idPlayer1) + " disconnected while waiting in queue");
                     });
                 }
 
-                // Re-enqueue player2
+                // Reenqueue player2
                 Node *n2 = users.findById(idPlayer2);
+
                 if (n2 != NULL && n2->isConnected)
                 {
                     n2->isPlaying = false;
@@ -120,10 +132,12 @@ void handleQueue()
                     QObject::connect(n2->socket, &QTcpSocket::disconnected, [=]()
                     {
                         Node *node = users.findById(idPlayer2);
+
                         if (node != NULL) {
                             node->isConnected = false;
                             node->isPlaying = false;
                         }
+
                         activeUsers.remove(idPlayer2);
                         waitingQueue.remove(idPlayer2);
                         logs.info("Server:- User " + std::to_string(idPlayer2) + " disconnected while waiting in queue");
@@ -133,17 +147,19 @@ void handleQueue()
                 handleQueue();
                 return;
             }
-        } });
+        } 
+    });
 
     QObject::connect(player2->socket, &QTcpSocket::readyRead, [=]()
-                     {
+    {
         while (player2->socket->canReadLine())
         {
             QByteArray raw  = player2->socket->readLine();
             std::string msg = raw.toStdString();
 
             GameRoom *room = activeRooms.getRoom(roomId);
-            if (room == NULL){
+            if (room == NULL)
+            {
                 return;
             }
 
@@ -154,30 +170,36 @@ void handleQueue()
                 activeRooms.closeRoom(roomId);
                 friendGraph.displayAll();
 
-                // Re-enqueue player1
+                // Reenqueue player1
                 Node *n1 = users.findById(idPlayer1);
+
                 if (n1 != NULL && n1->isConnected)
                 {
                     n1->isPlaying = false;
                     waitingQueue.enqueue(idPlayer1, n1->socket);
+
                     n1->socket->write(Protocol::build(TAG_WAIT, "Game over! Looking for next opponent...").c_str());
                     n1->socket->flush();
                     
                     QObject::connect(n1->socket, &QTcpSocket::disconnected, [=]()
                     {
                         Node *node = users.findById(idPlayer1);
+
                         if (node != NULL) {
                             node->isConnected = false;
                             node->isPlaying = false;
                         }
+
                         activeUsers.remove(idPlayer1);
                         waitingQueue.remove(idPlayer1);
+
                         logs.info("Server:- User " + std::to_string(idPlayer1) + " disconnected while waiting in queue");
                     });
                 }
 
-                // Re-enqueue player2
+                // Reenqueue player2
                 Node *n2 = users.findById(idPlayer2);
+
                 if (n2 != NULL && n2->isConnected)
                 {
                     n2->isPlaying = false;
@@ -188,10 +210,12 @@ void handleQueue()
                     QObject::connect(n2->socket, &QTcpSocket::disconnected, [=]()
                     {
                         Node *node = users.findById(idPlayer2);
+
                         if (node != NULL) {
                             node->isConnected = false;
                             node->isPlaying = false;
                         }
+
                         activeUsers.remove(idPlayer2);
                         waitingQueue.remove(idPlayer2);
                         logs.info("Server:- User " + std::to_string(idPlayer2) + " disconnected while waiting in queue");
@@ -201,17 +225,21 @@ void handleQueue()
                 handleQueue();
                 break;
             }
-        } });
+        } 
+    });
 
     QObject::connect(player1->socket, &QTcpSocket::disconnected, [=]()
-                     {
+    {
         Node *node = users.findById(idPlayer1);
+
         if (node != NULL)
         {
             node->isConnected = false;
             node->isPlaying   = false;
+
             activeUsers.remove(idPlayer1);
             waitingQueue.remove(idPlayer1);
+
             logs.info("System:- User " + std::to_string(idPlayer1) + " disconnected during game");
         }
 
@@ -225,11 +253,11 @@ void handleQueue()
             activeRooms.closeRoom(roomId);
             friendGraph.displayAll();
 
-            // Disconnect game signals from survivor before re-enqueue
+            // Disconnect game signals from survivor before reenqueue
             QObject::disconnect(player2->socket, &QTcpSocket::readyRead, nullptr, nullptr);
             QObject::disconnect(player2->socket, &QTcpSocket::disconnected, nullptr, nullptr);
 
-            // Re-enqueue the other player
+            // Reenqueue the other player
             Node *survivor = users.findById(idPlayer2);
             if (survivor != NULL && survivor->isConnected)
             {
@@ -245,17 +273,20 @@ void handleQueue()
                         node->isConnected = false;
                         node->isPlaying = false;
                     }
+
                     activeUsers.remove(idPlayer2);
                     waitingQueue.remove(idPlayer2);
+
                     logs.info("Server:- User " + std::to_string(idPlayer2) + " disconnected while waiting in queue");
                 });
                 
                 handleQueue();
             }
-        } });
+        } 
+    });
 
     QObject::connect(player2->socket, &QTcpSocket::disconnected, [=]()
-                     {
+    {
         Node *node = users.findById(idPlayer2);
         if (node != NULL)
         {
@@ -263,6 +294,7 @@ void handleQueue()
             node->isPlaying   = false;
             activeUsers.remove(idPlayer2);
             waitingQueue.remove(idPlayer2);
+
             logs.info("System:- User " + std::to_string(idPlayer2) + " disconnected during game");
         }
 
@@ -276,12 +308,13 @@ void handleQueue()
             activeRooms.closeRoom(roomId);
             friendGraph.displayAll();
 
-            // Disconnect game signals from survivor before re-enqueue
+            // Disconnect game signals from survivor before reenqueue
             QObject::disconnect(player1->socket, &QTcpSocket::readyRead, nullptr, nullptr);
             QObject::disconnect(player1->socket, &QTcpSocket::disconnected, nullptr, nullptr);
 
-            // Re-enqueue the other player
+            // Reenqueue the other player
             Node *survivor = users.findById(idPlayer1);
+
             if (survivor != NULL && survivor->isConnected)
             {
                 survivor->isPlaying = false;
@@ -292,10 +325,12 @@ void handleQueue()
                 QObject::connect(survivor->socket, &QTcpSocket::disconnected, [=]()
                 {
                     Node *node = users.findById(idPlayer1);
+
                     if (node != NULL) {
                         node->isConnected = false;
                         node->isPlaying = false;
                     }
+
                     activeUsers.remove(idPlayer1);
                     waitingQueue.remove(idPlayer1);
                     logs.info("Server:- User " + std::to_string(idPlayer1) + " disconnected while waiting in queue");
@@ -303,7 +338,8 @@ void handleQueue()
                 
                 handleQueue();
             }
-        } });
+        } 
+    });
 }
 
 void promoteToServer(QTcpSocket *socket, std::string ip)
@@ -333,8 +369,7 @@ void promoteToServer(QTcpSocket *socket, std::string ip)
         socket->write(Protocol::build(TAG_AUTH, "RECONNECT").c_str());
         socket->flush();
 
-        logs.info("Server:- User " + std::to_string(existing->userId) +
-                  " reconnected from " + ip);
+        logs.info("Server:- User " + std::to_string(existing->userId) + " reconnected from " + ip);
 
         waitingQueue.enqueue(existing->userId, socket);
     }
@@ -357,18 +392,21 @@ void promoteToServer(QTcpSocket *socket, std::string ip)
         waitingQueue.enqueue(id, socket);
     }
 
-    // Connect queue disconnect listener
     QObject::connect(socket, &QTcpSocket::disconnected, [=]()
-                     {
+    {
         Node *node = users.findById(assignedId);
+
         if (node != NULL)
         {
             node->isConnected = false;
             node->isPlaying   = false;
         }
+
         activeUsers.remove(assignedId);
         waitingQueue.remove(assignedId);
-        logs.info("Server:- User " + std::to_string(assignedId) + " disconnected while waiting in queue"); });
+
+        logs.info("Server:- User " + std::to_string(assignedId) + " disconnected while waiting in queue"); 
+    });
 
     socket->write(Protocol::build(TAG_WAIT, "Looking for opponent...").c_str());
     socket->flush();
@@ -378,8 +416,8 @@ void promoteToServer(QTcpSocket *socket, std::string ip)
 
 void handleNewConnection(QTcpSocket *socket)
 {
-    // Do NOT use deleteLater here - socket lifetime is managed when removed from AVL tree
     std::string ip = socket->peerAddress().toString().toStdString();
+
     logs.info("Server:- New connection from " + ip + ", waiting for auth");
 
     pendingUsers.insert(socket, ip);
@@ -389,27 +427,38 @@ void handleNewConnection(QTcpSocket *socket)
 
     QTimer *authTimer = new QTimer();
     authTimer->setSingleShot(true);
+
     QObject::connect(authTimer, &QTimer::timeout, [=]()
-                     {
+    {
         LinkedListNode *node = pendingUsers.find(socket);
+
         if (node != NULL)
         {
             logs.info("Server:- Auth timeout for " + ip);
             pendingUsers.remove(socket);
             socket->disconnectFromHost();
         }
-        authTimer->deleteLater(); });
+
+        authTimer->deleteLater(); 
+    });
 
     QObject::connect(socket, &QTcpSocket::readyRead, [=]()
-                     {
+    {
         LinkedListNode *node = pendingUsers.find(socket);
-        if (node == NULL) return;
+
+        if (node == NULL) 
+        {
+            return;
+        }
 
         while (socket->canReadLine())
         {
             std::string msg = socket->readLine().toStdString();
+
             while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r'))
+            {
                 msg.pop_back();
+            }
 
             std::string tag  = Protocol::getTag(msg);
             std::string data = Protocol::getData(msg);
@@ -420,7 +469,6 @@ void handleNewConnection(QTcpSocket *socket)
                 std::string nodeIp = node->ip;
                 pendingUsers.remove(socket);
 
-                // Stop auth timer and disconnect auth-phase signals before promoting
                 authTimer->stop();
                 authTimer->deleteLater();
                 QObject::disconnect(socket, &QTcpSocket::readyRead, nullptr, nullptr);
@@ -438,20 +486,24 @@ void handleNewConnection(QTcpSocket *socket)
                 socket->disconnectFromHost();
                 return;
             }
-        } });
+        } 
+    });
 
     QObject::connect(socket, &QTcpSocket::disconnected, [=]()
-                     {
-                         authTimer->stop();
-                         authTimer->deleteLater();
-                         LinkedListNode *node = pendingUsers.find(socket);
-                         if (node != NULL)
-                         {
-                             logs.info("Server:- Unauthenticated user dropped " + ip);
-                             pendingUsers.remove(socket);
-                         }
-                         socket->deleteLater(); // Socket should be deleted if disconnected BEFORE authentication
-                     });
+    {
+        authTimer->stop();
+        authTimer->deleteLater();
+
+        LinkedListNode *node = pendingUsers.find(socket);
+                         
+        if (node != NULL)
+        {
+            logs.info("Server:- Unauthenticated user dropped " + ip);
+            pendingUsers.remove(socket);
+        }
+
+        socket->deleteLater(); // Socket should be deleted if disconnected BEFORE authentication
+    });
 
     authTimer->start(10000); // 10s timeout
 }
@@ -467,9 +519,10 @@ int main(int argc, char *argv[])
     logs.info("Server is waiting for clients all over the world on port 8080");
 
     QObject::connect(&server, &QTcpServer::newConnection, [&]()
-                     {
+    {
         QTcpSocket *socket = server.nextPendingConnection();
-        handleNewConnection(socket); });
+        handleNewConnection(socket); 
+    });
 
     return a.exec();
 }

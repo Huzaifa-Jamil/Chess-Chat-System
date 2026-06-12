@@ -26,17 +26,19 @@ char myColor = 'w';
 static void safePrint(const std::string &s)
 {
     QMutexLocker locker(&ioMutex);
-    std::cout << "\n"
-              << s << std::endl;
+    std::cout << "\n" << s << std::endl;
     std::cout << "> " << std::flush;
 }
 
 static void sendMsg(const std::string &tag, const std::string &data)
 {
     if (!pSocket)
+    {
         return;
+    }
+
     QMetaObject::invokeMethod(pSocket, [=]()
-                              {
+    {
         pSocket->write(Protocol::build(tag, data).c_str());
         pSocket->flush(); }, Qt::QueuedConnection);
 }
@@ -96,6 +98,7 @@ static void printBoard()
                     else
                     {
                         char p = game.board[r][c].type;
+
                         if (p >= 'A' && p <= 'Z')
                         {
                             out += " w";
@@ -126,13 +129,19 @@ static void inputLoop()
     {
         std::string line;
         if (!std::getline(std::cin, line))
+        {
             break;
+        }
 
         if (!running)
+        {
             break;
+        }
 
         if (line.empty())
+        {
             continue;
+        }
 
         if (line == "quit")
         {
@@ -140,8 +149,10 @@ static void inputLoop()
             if (pSocket)
             {
                 QMetaObject::invokeMethod(pSocket, []()
-                                          { pSocket->disconnectFromHost(); }, Qt::QueuedConnection);
+                {
+                    pSocket->disconnectFromHost(); }, Qt::QueuedConnection);
             }
+
             break;
         }
 
@@ -191,19 +202,19 @@ static void inputLoop()
 
             bool ok = false;
             char turn = 'w';
+
+            QMutexLocker lock(&gameMutex);
+            turn = game.chessBoard.turn;
+
+            if (turn != myColor)
             {
-                QMutexLocker lock(&gameMutex);
-                turn = game.chessBoard.turn;
-                if (turn != myColor)
-                {
-                    safePrint("[System] Warning, Not your turn (you are " +
-                              std::string(myColor == 'w' ? "White" : "Black") + ")");
-                }
-                else
-                {
-                    ok = game.validateMove(mv);
-                }
+                safePrint("[System] Warning, Not your turn (you are " + std::string(myColor == 'w' ? "White" : "Black") + ")");
             }
+            else
+            {
+                ok = game.validateMove(mv);
+            }
+
             if (turn == myColor && ok)
             {
                 safePrint("[System] Move sent: " + mv);
@@ -230,10 +241,12 @@ int main(int argc, char *argv[])
     pSocket->connectToHost("127.0.0.1", 8080);
 
     QObject::connect(pSocket, &QTcpSocket::connected, []()
-                     { safePrint("[Server] Connection Successful"); });
+    {
+        safePrint("[Server] Connection Successful");
+    });
 
     QObject::connect(pSocket, &QTcpSocket::readyRead, [&]()
-                     {
+    {
         while (pSocket->canReadLine())
         {
             std::string msg = pSocket->readLine().toStdString();
@@ -296,20 +309,24 @@ int main(int argc, char *argv[])
             else if (tag == TAG_START)
             {
                 size_t p1 = data.find('|');
+
                 if (p1 != std::string::npos)
                 {
                     std::string oppId = data.substr(0, p1);
                     size_t p2 = data.find('|', p1 + 1);
+                    
                     if (p2 != std::string::npos)
                     {
                         std::string colorStr = data.substr(p1 + 1, p2 - p1 - 1);
                         std::string boardState = data.substr(p2 + 1);
+
                         if (!colorStr.empty())
-                            myColor = colorStr[0];
                         {
-                            QMutexLocker lock(&gameMutex);
-                            game.deserialize(boardState);
+                            myColor = colorStr[0];
                         }
+
+                        QMutexLocker lock(&gameMutex);
+                        game.deserialize(boardState);
 
                         std::string out;
 
@@ -350,14 +367,7 @@ int main(int argc, char *argv[])
                         out += "Let the battle begin!\n";
                         out += "=========================================\n";
 
-                        if (myColor == 'w')
-                        {
-                            safePrint(out);
-                        }
-                        else
-                        {
-                            safePrint(out);
-                        }
+                        safePrint(out);
                     }
                     else
                     {
@@ -372,6 +382,7 @@ int main(int argc, char *argv[])
                     QMutexLocker lock(&gameMutex);
                     game.reset();
                 }
+
                 printBoard();
             }
             else if (tag == TAG_WIN)
@@ -397,13 +408,15 @@ int main(int argc, char *argv[])
                 awaitingPromotion = false;
                 safePrint("[System] Match ended");
             }
-        } });
+        } 
+    });
 
     QObject::connect(pSocket, &QTcpSocket::disconnected, []()
-                     {
+    {
         safePrint("[Server] Server Disconnected during mid session");
         running = false;
-        QCoreApplication::quit(); });
+        QCoreApplication::quit(); 
+    });
 
     QThread *t = QThread::create(inputLoop);
     t->start();
